@@ -138,9 +138,9 @@ export default function RAGPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="border-b border-gray-200 bg-white">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-xl font-semibold text-gray-900">RAGシステム</h1>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <p className="text-sm text-gray-500">{user?.email}</p>
               <button
                 onClick={handleLogout}
@@ -154,10 +154,10 @@ export default function RAGPage() {
       </div>
 
       <div className="container mx-auto px-4 py-4">
-        <div className="mb-6 flex gap-1 border-b border-gray-200">
+        <div className="mb-6 flex gap-1 overflow-x-auto border-b border-gray-200">
           <button
             onClick={() => setActiveTab('documents')}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'documents'
                 ? 'border-b-2 border-gray-900 text-gray-900'
                 : 'text-gray-500 hover:text-gray-700'
@@ -167,7 +167,7 @@ export default function RAGPage() {
           </button>
           <button
             onClick={() => setActiveTab('chat')}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'chat'
                 ? 'border-b-2 border-gray-900 text-gray-900'
                 : 'text-gray-500 hover:text-gray-700'
@@ -375,9 +375,9 @@ function DocumentsTab({
                 key={doc.id}
                 className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{doc.title}</h3>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words font-medium text-gray-900">{doc.title}</h3>
                     <p className="mt-1.5 line-clamp-2 text-sm text-gray-600">
                       {doc.content.substring(0, 200)}...
                     </p>
@@ -385,23 +385,23 @@ function DocumentsTab({
                       {new Date(doc.createdAt).toLocaleString('ja-JP')}
                     </p>
                   </div>
-                  <div className="ml-4 flex gap-2">
+                  <div className="flex flex-wrap gap-2 sm:ml-4 sm:flex-nowrap">
                     <Link
                       href={`/rag/documents/${doc.id}`}
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                      className="whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                     >
                       詳細
                     </Link>
                     <button
                       onClick={() => handleEdit(doc.id)}
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                      className="whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                     >
                       編集
                     </button>
                     <button
                       onClick={() => handleDelete(doc.id)}
                       disabled={deleting}
-                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                      className="whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
                     >
                       削除
                     </button>
@@ -415,8 +415,8 @@ function DocumentsTab({
 
       {/* 編集モーダル */}
       {isEditModalOpen && selectedDocument && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-4xl rounded-lg border border-gray-200 bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">ドキュメントを編集</h2>
               <button
@@ -495,6 +495,7 @@ function ChatTab({
   onRefresh: () => void;
 }) {
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<
     Array<{
       role: string;
@@ -704,6 +705,7 @@ function ChatTab({
       return; // 編集中の場合は選択しない
     }
     setSelectedThreadId(threadId);
+    setIsSidebarOpen(false); // モバイルで会話を選択したらサイドバーを閉じる
   };
 
   const handleThreadDoubleClick = (thread: Thread) => {
@@ -839,7 +841,59 @@ function ChatTab({
 
   return (
     <div className="flex h-[calc(100vh-200px)] gap-4">
-      <div className="w-64 space-y-2">
+      {/* モバイル用サイドバートグルボタン */}
+      <div className="fixed bottom-4 right-4 z-30 sm:hidden">
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="rounded-full bg-gray-900 p-3 text-white shadow-lg transition-colors hover:bg-gray-800"
+          title="会話一覧"
+        >
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {/* サイドバー */}
+      <div
+        className={`fixed inset-y-0 left-0 z-40 w-64 transform space-y-2 bg-white p-4 shadow-xl transition-transform duration-300 ease-in-out sm:relative sm:z-auto sm:transform-none sm:shadow-none ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
+        }`}
+      >
+        {/* モバイル用閉じるボタン */}
+        <div className="mb-4 flex items-center justify-between sm:hidden">
+          <h2 className="text-sm font-semibold text-gray-900">会話一覧</h2>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="rounded-lg p-1 text-gray-600 hover:bg-gray-100"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
         <button
           onClick={createThread}
           disabled={creatingThread}
@@ -921,6 +975,14 @@ function ChatTab({
         </div>
       </div>
 
+      {/* サイドバーオーバーレイ（モバイル用） */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 sm:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       <div className="flex flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
         {selectedThreadId ? (
           <>
@@ -934,7 +996,7 @@ function ChatTab({
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg px-4 py-2.5 ${
+                      className={`max-w-[85%] rounded-lg px-3 py-2 sm:max-w-[80%] sm:px-4 sm:py-2.5 ${
                         message.role === 'user'
                           ? 'bg-gray-900 text-white'
                           : 'border border-gray-200 bg-gray-50 text-gray-900'
@@ -1049,7 +1111,7 @@ function ChatTab({
             </div>
             <div className="border-t border-gray-200 bg-gray-50/50 p-4">
               {/* システムプロンプト選択 */}
-              <div className="mb-3 flex items-center gap-2">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                 <div className="relative flex-1">
                   <select
                     onChange={(e) => {
@@ -1071,28 +1133,30 @@ function ChatTab({
                     ))}
                   </select>
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingPromptId(null);
-                    setPromptTitle('');
-                    setPromptContent('');
-                    setIsPromptModalOpen(true);
-                  }}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  新規登録
-                </button>
-                {systemPrompts.length > 0 && (
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setShowPromptsList(!showPromptsList)}
-                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                    title="一覧を表示"
+                    onClick={() => {
+                      setEditingPromptId(null);
+                      setPromptTitle('');
+                      setPromptContent('');
+                      setIsPromptModalOpen(true);
+                    }}
+                    className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:flex-none"
                   >
-                    {showPromptsList ? '一覧を閉じる' : '一覧'}
+                    新規登録
                   </button>
-                )}
+                  {systemPrompts.length > 0 && (
+                    <button
+                      onClick={() => setShowPromptsList(!showPromptsList)}
+                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:flex-none"
+                      title="一覧を表示"
+                    >
+                      {showPromptsList ? '一覧を閉じる' : '一覧'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <textarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
@@ -1131,7 +1195,7 @@ function ChatTab({
                 <button
                   onClick={sendMessage}
                   disabled={sending || !inputMessage.trim()}
-                  className="self-end rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:self-end"
                 >
                   {sending ? '送信中...' : '送信'}
                 </button>
@@ -1176,8 +1240,8 @@ function ChatTab({
 
       {/* システムプロンプト管理モーダル */}
       {isPromptModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-lg border border-gray-200 bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-xl sm:p-6">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
                 {editingPromptId ? 'システムプロンプトを編集' : 'システムプロンプトを登録'}
@@ -1243,7 +1307,7 @@ function ChatTab({
 
       {/* システムプロンプト一覧 */}
       {showPromptsList && systemPrompts.length > 0 && (
-        <div className="fixed right-4 top-20 z-40 w-64 rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
+        <div className="fixed right-2 top-20 z-40 w-[calc(100%-1rem)] max-w-64 rounded-lg border border-gray-200 bg-white p-4 shadow-lg sm:right-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">システムプロンプト</h3>
             <button

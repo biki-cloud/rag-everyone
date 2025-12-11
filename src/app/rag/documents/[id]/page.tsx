@@ -154,40 +154,40 @@ export default function DocumentDetailPage() {
 
   return (
     <div className="container mx-auto min-h-screen p-4">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={() => router.push('/rag')}
-          className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+          className="self-start rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
         >
           戻る
         </button>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p className="text-sm text-gray-600">{user?.email}</p>
           <button
             onClick={async () => {
               await supabase.auth.signOut();
               router.push('/auth');
             }}
-            className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+            className="self-start rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600 sm:self-auto"
           >
             ログアウト
           </button>
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white p-6 shadow-lg">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{document.title}</h1>
-          <div className="flex gap-2">
+      <div className="rounded-lg border bg-white p-4 shadow-lg sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="break-words text-2xl font-bold sm:text-3xl">{document.title}</h1>
+          <div className="flex flex-wrap gap-2 sm:flex-nowrap">
             <button
               onClick={() => router.push(`/rag/documents/${document.id}/edit`)}
-              className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+              className="flex-1 rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 sm:flex-none"
             >
               編集
             </button>
             <button
               onClick={handleDelete}
-              className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+              className="flex-1 rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600 sm:flex-none"
             >
               削除
             </button>
@@ -210,4 +210,3 @@ export default function DocumentDetailPage() {
     </div>
   );
 }
-

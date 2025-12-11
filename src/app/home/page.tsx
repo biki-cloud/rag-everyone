@@ -84,20 +84,20 @@ export default function Home() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">ホーム</h1>
           {user ? (
-            <p className="text-sm text-gray-600">ログイン中: {user.email}</p>
+            <p className="break-words text-sm text-gray-600">ログイン中: {user.email}</p>
           ) : (
             <p className="text-sm text-gray-600">ログインしていません</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap">
           {user && (
             <button
               onClick={() => router.push('/rag')}
-              className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+              className="flex-1 rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 sm:flex-none"
             >
               RAGシステム
             </button>
@@ -105,14 +105,14 @@ export default function Home() {
           {user ? (
             <button
               onClick={handleLogout}
-              className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+              className="flex-1 rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600 sm:flex-none"
             >
               ログアウト
             </button>
           ) : (
             <button
               onClick={() => router.push('/auth')}
-              className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+              className="flex-1 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 sm:flex-none"
             >
               ログイン
             </button>
@@ -122,20 +122,26 @@ export default function Home() {
 
       <div>
         <p>Your customer IDs</p>
-        <ul>
+        <ul className="space-y-2">
           {customers.map((customer) => (
-            <li key={customer.customerId}>{customer.customerId}</li>
+            <li key={customer.customerId} className="break-words">
+              {customer.customerId}
+            </li>
           ))}
           {user && (
             <li>
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row">
                 <input
                   type="text"
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
                   placeholder="add a new customer ID"
+                  className="flex-1 rounded border border-gray-300 px-3 py-2 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
                 />
-                <button type="submit" className="border-2 border-red-500 p-1">
+                <button
+                  type="submit"
+                  className="rounded border-2 border-red-500 bg-white px-4 py-2 text-red-500 transition-colors hover:bg-red-50 sm:flex-none"
+                >
                   submit
                 </button>
               </form>
