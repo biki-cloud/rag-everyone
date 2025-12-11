@@ -479,15 +479,15 @@ ${unifiedContext}\n\n`;
 
     // アシスタントIDを取得（環境変数から、またはデフォルトのアシスタントを作成）
     let assistantId = process.env.OPENAI_ASSISTANT_ID;
-    // モデルを最適化（gpt-4o-mini または gpt-4o を使用）
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'; // デフォルトは gpt-4o-mini（高速、自然文が安定）
+    // モデルを最適化（gpt-4.1 を使用）
+    const model = process.env.OPENAI_MODEL || 'gpt-4.1'; // デフォルトは gpt-4.1
 
     if (!assistantId) {
       // アシスタントが存在しない場合は作成
       const assistant = await openai.beta.assistants.create({
         name: 'RAG Assistant',
         instructions,
-        model: model as 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4-turbo-preview',
+        model: model as 'gpt-4.1' | 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4-turbo-preview',
       });
       assistantId = assistant.id;
     } else {
@@ -583,7 +583,7 @@ ${assistantContent}
 簡潔に評価してください（1-2文程度）。`;
 
         const checkResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4.1',
           messages: [
             {
               role: 'system',

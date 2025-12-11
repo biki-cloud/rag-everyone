@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest) {
       name: 'RAG Assistant',
       instructions:
         'あなたは登録されたドキュメントを参照して質問に答えるアシスタントです。提供されたコンテキスト情報を基に、正確で有用な回答を提供してください。',
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4.1',
     });
 
     return NextResponse.json({ assistantId: assistant.id });
@@ -36,4 +39,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'アシスタントの作成に失敗しました' }, { status: 500 });
   }
 }
-
