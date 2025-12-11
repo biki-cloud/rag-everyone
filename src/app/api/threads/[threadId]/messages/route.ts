@@ -1,10 +1,10 @@
 import { db } from '@/server/db';
-import { threadsTable, messagesTable } from '@/server/db/schema';
+import { threadsTable, messagesTable, documentsTable } from '@/server/db/schema';
 import { openai } from '@/lib/openai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/env';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, inArray } from 'drizzle-orm';
 
 export const runtime = 'edge';
 
@@ -174,12 +174,40 @@ export async function POST(
     // コンテキストを含めたメッセージを作成
     let contextText = '';
     let referencedTitles: string[] = [];
+    let referencedDocuments: Array<{ title: string; id: number }> = [];
 
     if (context && context.length > 0) {
       // タイトル情報を収集
       referencedTitles = Array.from(
         new Set(context.map((c) => c.documentTitle).filter((title): title is string => !!title))
       );
+
+      // タイトルからドキュメントIDを取得
+      if (referencedTitles.length > 0) {
+        const documents = await db
+          .select({
+            id: documentsTable.id,
+            title: documentsTable.title,
+          })
+          .from(documentsTable)
+          .where(eq(documentsTable.userId, user.id));
+
+        // タイトルとIDのマッピングを作成
+        const titleToIdMap = new Map<string, number>();
+        for (const doc of documents) {
+          if (referencedTitles.includes(doc.title)) {
+            titleToIdMap.set(doc.title, doc.id);
+          }
+        }
+
+        // referencedDocumentsを作成
+        referencedDocuments = referencedTitles
+          .map((title) => {
+            const id = titleToIdMap.get(title);
+            return id ? { title, id } : null;
+          })
+          .filter((doc): doc is { title: string; id: number } => doc !== null);
+      }
 
       // チャンクをchunkIndex順にソート（同じドキュメント内で論理順序を保つ）
       const sortedContext = [...context].sort((a, b) => {
@@ -511,6 +539,7 @@ ${assistantContent}
     return NextResponse.json({
       message: assistantContent,
       referencedTitles: referencedTitles.length > 0 ? referencedTitles : undefined,
+      referencedDocuments: referencedDocuments.length > 0 ? referencedDocuments : undefined,
       selfCheck: selfCheckResult,
     });
   } catch (error) {
