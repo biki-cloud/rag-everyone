@@ -4,7 +4,7 @@ import { openai } from '@/lib/openai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/env';
-import { eq, desc } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 
 export const runtime = 'edge';
 
@@ -81,7 +81,7 @@ export async function GET(
       .select()
       .from(messagesTable)
       .where(eq(messagesTable.threadId, parseInt(threadId)))
-      .orderBy(desc(messagesTable.createdAt));
+      .orderBy(asc(messagesTable.createdAt));
 
     return NextResponse.json({ messages });
   } catch (error) {

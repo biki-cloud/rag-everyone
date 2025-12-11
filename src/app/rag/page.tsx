@@ -353,7 +353,7 @@ function ChatTab({
     setInputMessage('');
     setSending(true);
 
-    // ユーザーメッセージを一時的に表示
+    // ユーザーメッセージを一時的に表示（新しいメッセージは末尾に追加）
     setMessages((prev) => [
       ...prev,
       {
