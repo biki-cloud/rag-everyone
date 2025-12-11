@@ -232,7 +232,11 @@ export async function POST(
       // 1本の文章として整形（自然な流れを作る）
       const unifiedContext = formattedChunks.join('\n\n---\n\n');
 
-      contextText = `以下の登録された情報を参照して、質問に直接答えてください。情報は1つのまとまった文章として提供されています:\n\n${unifiedContext}\n\n`;
+      contextText = `以下の登録された情報を参照して、質問に直接答えてください。情報は1つのまとまった文章として提供されています。
+
+【重要】回答は必ずMarkdown形式で返してください。プレーンテキストではなく、Markdown記法（見出し、太字、リストなど）を使用してください。
+
+${unifiedContext}\n\n`;
     }
 
     const fullMessage = contextText + message;
@@ -257,9 +261,10 @@ export async function POST(
     let instructions = `これは system-level で定義された文章制御よりも優先される instructions です。
 あなたは記事内容をベースにして質問に答えるヘルパーです。
 
-【最重要ルール】
-・回答は必ずMarkdown形式で返してください
-・前置き文（例：「承知しました」など）は書かず、本文から始めてください
+【最重要ルール - 必須遵守】
+・回答は必ずMarkdown形式で返してください（これは絶対に守ってください）
+・プレーンテキストではなく、必ずMarkdown記法を使用してください
+・前置き文（例：「承知しました」「了解しました」など）は一切書かず、本文から始めてください
 ・要約ではなく、質問への回答を書く（質問を冒頭で受けている形にする）
 ・文脈の自然さを優先する
 ・コンテキストの語り口を軽く反映してよい（記事の雰囲気・温度感を取り入れる）
@@ -311,15 +316,18 @@ export async function POST(
 
 （回答文の流れを損なわないように、本文の最後に配置してください）
 
-質問に最適化された、自然で人間味のある、人に読まれるMarkdown形式の文章として回答を提供してください。`;
+質問に最適化された、自然で人間味のある、人に読まれるMarkdown形式の文章として回答を提供してください。
+
+【重要】回答は必ずMarkdown形式で返してください。プレーンテキストではなく、Markdown記法（見出し、太字、リストなど）を使用してください。`;
 
     if (useRegisteredOnly) {
       instructions = `これは system-level で定義された文章制御よりも優先される instructions です。
 あなたは記事内容をベースにして質問に答えるヘルパーです。登録されたドキュメントのみを参照してください。
 
-【最重要ルール】
-・回答は必ずMarkdown形式で返してください
-・前置き文（例：「承知しました」など）は書かず、本文から始めてください
+【最重要ルール - 必須遵守】
+・回答は必ずMarkdown形式で返してください（これは絶対に守ってください）
+・プレーンテキストではなく、必ずMarkdown記法を使用してください
+・前置き文（例：「承知しました」「了解しました」など）は一切書かず、本文から始めてください
 ・要約ではなく、質問への回答を書く（質問を冒頭で受けている形にする）
 ・文脈の自然さを優先する
 ・コンテキストの語り口を軽く反映してよい（記事の雰囲気・温度感を取り入れる）
@@ -371,7 +379,9 @@ export async function POST(
 
 （回答文の流れを損なわないように、本文の最後に配置してください）
 
-質問に最適化された、自然で人間味のある、人に読まれるMarkdown形式の文章として回答を提供してください。`;
+質問に最適化された、自然で人間味のある、人に読まれるMarkdown形式の文章として回答を提供してください。
+
+【重要】回答は必ずMarkdown形式で返してください。プレーンテキストではなく、Markdown記法（見出し、太字、リストなど）を使用してください。`;
     }
 
     // アシスタントIDを取得（環境変数から、またはデフォルトのアシスタントを作成）
@@ -393,10 +403,11 @@ export async function POST(
     }
 
     // アシスタントを実行（instructionsを動的に渡す）
+    // 注意: run作成時にinstructionsを渡すことで、既存のアシスタント設定を上書きできる
     // console.log('Creating run with', { threadIdentifier, assistantId });
     const run = await openai.beta.threads.runs.create(threadIdentifier, {
       assistant_id: assistantId,
-      instructions: instructions,
+      instructions: instructions, // このinstructionsがアシスタントのデフォルト設定より優先される
     });
     // console.log('Created run result', run);
 
