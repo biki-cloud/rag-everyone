@@ -502,6 +502,9 @@ function ChatTab({
   const [creatingThread, setCreatingThread] = useState(false);
   const [useRegisteredOnly, setUseRegisteredOnly] = useState(true);
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+  const [editingThreadId, setEditingThreadId] = useState<number | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [updatingTitle, setUpdatingTitle] = useState(false);
 
   const createThread = async () => {
     if (!session) return;
@@ -559,6 +562,54 @@ function ChatTab({
       void loadMessages(selectedThreadId);
     }
   }, [selectedThreadId, session]);
+
+  const handleThreadClick = (threadId: number) => {
+    if (editingThreadId === threadId) {
+      return; // 編集中の場合は選択しない
+    }
+    setSelectedThreadId(threadId);
+  };
+
+  const handleThreadDoubleClick = (thread: Thread) => {
+    if (!session) return;
+    setEditingThreadId(thread.id);
+    setEditingTitle(thread.title || '');
+  };
+
+  const handleTitleUpdate = async (threadId: number) => {
+    if (!session || updatingTitle) return;
+
+    setUpdatingTitle(true);
+    try {
+      const response = await fetch(`/api/threads/${threadId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session}`,
+        },
+        body: JSON.stringify({ title: editingTitle.trim() || null }),
+      });
+
+      if (response.ok) {
+        setEditingThreadId(null);
+        setEditingTitle('');
+        void onRefresh();
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || 'タイトルの更新に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to update thread title:', error);
+      alert('タイトルの更新に失敗しました');
+    } finally {
+      setUpdatingTitle(false);
+    }
+  };
+
+  const handleTitleCancel = () => {
+    setEditingThreadId(null);
+    setEditingTitle('');
+  };
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || !selectedThreadId || !session) return;
@@ -662,17 +713,74 @@ function ChatTab({
         </button>
         <div className="space-y-1">
           {threads.map((thread) => (
-            <button
+            <div
               key={thread.id}
-              onClick={() => setSelectedThreadId(thread.id)}
-              className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors ${
+              className={`w-full rounded-lg transition-colors ${
                 selectedThreadId === thread.id
-                  ? 'bg-gray-900 font-medium text-white'
-                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  ? 'bg-gray-900'
+                  : 'border border-gray-200 bg-white hover:bg-gray-50'
               }`}
             >
-              {thread.title || `会話 ${thread.id}`}
-            </button>
+              {editingThreadId === thread.id ? (
+                <div className="flex items-center gap-1 px-2 py-2">
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void handleTitleUpdate(thread.id);
+                      } else if (e.key === 'Escape') {
+                        handleTitleCancel();
+                      }
+                    }}
+                    autoFocus
+                    className={`flex-1 rounded border px-2 py-1 text-sm focus:outline-none focus:ring-1 ${
+                      selectedThreadId === thread.id
+                        ? 'border-gray-600 bg-gray-800 text-white focus:border-gray-500 focus:ring-gray-500'
+                        : 'border-gray-300 bg-white text-gray-900 focus:border-gray-400 focus:ring-gray-400'
+                    }`}
+                    disabled={updatingTitle}
+                  />
+                  <button
+                    onClick={() => void handleTitleUpdate(thread.id)}
+                    disabled={updatingTitle}
+                    className={`rounded px-2 py-1 text-xs transition-colors disabled:opacity-50 ${
+                      selectedThreadId === thread.id
+                        ? 'text-white hover:bg-gray-700'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    title="保存"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    onClick={handleTitleCancel}
+                    disabled={updatingTitle}
+                    className={`rounded px-2 py-1 text-xs transition-colors disabled:opacity-50 ${
+                      selectedThreadId === thread.id
+                        ? 'text-white hover:bg-gray-700'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    title="キャンセル"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleThreadClick(thread.id)}
+                  onDoubleClick={() => handleThreadDoubleClick(thread)}
+                  className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                    selectedThreadId === thread.id ? 'font-medium text-white' : 'text-gray-700'
+                  }`}
+                  title="ダブルクリックで編集"
+                >
+                  {thread.title || `会話 ${thread.id}`}
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
