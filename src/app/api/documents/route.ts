@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
@@ -47,7 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
@@ -72,8 +78,8 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // テキストをチャンクに分割
-    const chunks = chunkText(content, 1000, 200);
+    // テキストをチャンクに分割（600文字、オーバーラップ150文字で最適化）
+    const chunks = chunkText(content, 600, 150);
 
     // 各チャンクの埋め込みを生成して保存
     for (let i = 0; i < chunks.length; i++) {
@@ -95,4 +101,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ドキュメントの作成に失敗しました' }, { status: 500 });
   }
 }
-

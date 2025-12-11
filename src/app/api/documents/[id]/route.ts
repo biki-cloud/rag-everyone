@@ -117,8 +117,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // 既存のチャンクを削除
     await db.delete(documentChunksTable).where(eq(documentChunksTable.documentId, documentId));
 
-    // テキストをチャンクに分割
-    const chunks = chunkText(content, 1000, 200);
+    // テキストをチャンクに分割（600文字、オーバーラップ150文字で最適化）
+    const chunks = chunkText(content, 600, 150);
 
     // 各チャンクの埋め込みを生成して保存
     for (let i = 0; i < chunks.length; i++) {

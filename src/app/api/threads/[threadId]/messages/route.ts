@@ -114,7 +114,7 @@ export async function POST(
     const { threadId } = await params;
     const body = (await request.json()) as {
       message?: string;
-      context?: Array<{ content: string; documentTitle?: string }>;
+      context?: Array<{ content: string; documentTitle?: string; chunkIndex?: number }>;
       useRegisteredOnly?: boolean;
     };
     const { message, context, useRegisteredOnly } = body;
@@ -181,15 +181,34 @@ export async function POST(
         new Set(context.map((c) => c.documentTitle).filter((title): title is string => !!title))
       );
 
-      // コンテキストをタイトル付きでフォーマット
-      const contextWithTitles = context
-        .map((c) => {
-          const titlePrefix = c.documentTitle ? `[${c.documentTitle}]\n` : '';
-          return `${titlePrefix}${c.content}`;
-        })
-        .join('\n\n');
+      // チャンクをchunkIndex順にソート（同じドキュメント内で論理順序を保つ）
+      const sortedContext = [...context].sort((a, b) => {
+        // 同じドキュメント内ではchunkIndex順
+        if (a.documentTitle === b.documentTitle) {
+          const aIndex = (a as any).chunkIndex ?? 0;
+          const bIndex = (b as any).chunkIndex ?? 0;
+          return aIndex - bIndex;
+        }
+        return 0; // 異なるドキュメントは順序を保持
+      });
 
-      contextText = `以下の登録された情報を参照してください:\n\n${contextWithTitles}\n\n`;
+      // 各チャンクにタイトル＋要点サマリを追加
+      const formattedChunks = sortedContext.map((c) => {
+        const title = c.documentTitle || '不明なドキュメント';
+        // 要点サマリを生成（最初の2-3文を抽出）
+        const sentences = c.content.split(/[。！？\n]+/).filter((s) => s.trim());
+        const summary = sentences.slice(0, 3).join('。').substring(0, 150);
+        const summaryText = summary
+          ? `【要点】${summary}${summary.length >= 150 ? '...' : ''}`
+          : '';
+
+        return `【タイトル】${title}\n${summaryText ? summaryText + '\n' : ''}${c.content}`;
+      });
+
+      // 1本の文章として整形（自然な流れを作る）
+      const unifiedContext = formattedChunks.join('\n\n---\n\n');
+
+      contextText = `以下の登録された情報を参照して、質問に直接答えてください。情報は1つのまとまった文章として提供されています:\n\n${unifiedContext}\n\n`;
     }
 
     const fullMessage = contextText + message;
@@ -209,36 +228,105 @@ export async function POST(
       createdAt: new Date(),
     });
 
-    // アシスタントの指示を構築
-    let instructions = `あなたは登録されたドキュメントを参照して質問に答えるアシスタントです。
+    // アシスタントの指示を構築（質問に最適化されたRAGプロンプト）
+    // 注意: これは system-level で定義された文章制御よりも優先される instructions です
+    let instructions = `これは system-level で定義された文章制御よりも優先される instructions です。
+あなたは記事内容をベースにして質問に答えるヘルパーです。
 
-重要な指示:
-1. 提供されたコンテキスト情報（登録された情報）がある場合は、それを最優先で参照して回答してください。
-2. コンテキスト情報がない場合、またはコンテキスト情報だけでは回答できない場合は、一般的な知識に基づいて回答してください。
-3. 登録された情報を参照して回答した場合は、回答の最後に「参照したドキュメント: [タイトル1], [タイトル2], ...」という形式で参照したドキュメントのタイトルを必ず明記してください。
-4. 一般的な知識のみで回答した場合は、参照したドキュメントの記載は不要です。
+【最重要ルール】
+・要約ではなく、質問への回答を書く（質問を冒頭で受けている形にする）
+・箇条書きではなく、自然な文章中心で回答する
+・文脈の自然さを優先する
+・コンテキストの語り口を軽く反映してよい（記事の雰囲気・温度感を取り入れる）
+・要点だけでなく、理由や背景も短く添える
+・コンテキスト以外の情報を加えない（一般知識を混ぜない）
+・要約っぽさを弱め、自然な流れを意識する（導入→説明→まとめの構成）
 
-提供されたコンテキスト情報を基に、正確で有用な回答を提供してください。`;
+【自然文スタイルの具体的な指示】
+・1文の長さは40〜120文字の範囲を目安にする
+・段落は2〜3文で区切る
+・接続詞を適度に使用し「人間の文章らしい流れ」を作る
+・専門用語は避け、読みやすさを優先する
+・硬い表現を避け、親しみやすい語調を心がける
+
+【回答の書き方】
+・回答の冒頭で質問を受けている形にする（例：「note初心者がジャンルを決めるときは...」）
+・「理由 → 結論」のストーリーを短くでも入れると読みやすくなる
+・箇条書き型の情報列挙から脱却し、文章として自然に流れるようにする
+・渡されたコンテキストの範囲だけで回答する
+・記事の結論を中心に、質問に直接答える
+・関係ない情報は省く
+・本文の単純な要約ではなく「質問への最適回答」にする
+・要約しすぎず、質問の意図に合わせて必要な情報を選んで回答する
+
+【回答の構成】
+・導入：質問への直接的な回答を冒頭で示す
+・説明：理由や背景を含めて自然に説明する
+・まとめ：必要に応じて簡潔にまとめる
+・結論が唐突に箇条書きで並ばないように調整する
+
+【回答方針】
+1. 提供されたコンテキスト情報（登録された情報）がある場合は、それを最優先で参照して回答してください。この場合も自然文スタイルのルールを維持してください。
+2. コンテキスト情報がない場合、またはコンテキスト情報だけでは回答できない場合は、一般的な知識に基づいて回答してください。この場合も自然文スタイルのルールを維持してください。
+3. 登録された情報を参照して回答した場合は、回答文とは独立した注釈として「参照したドキュメント: [タイトル1], [タイトル2], ...」という形式で参照したドキュメントのタイトルを明記してください（回答文の流れを損なわないように）。
+
+質問に最適化された、自然で人間味のある、人に読まれる文章として回答を提供してください。`;
 
     if (useRegisteredOnly) {
-      instructions = `あなたは登録されたドキュメントのみを参照して質問に答えるアシスタントです。
+      instructions = `これは system-level で定義された文章制御よりも優先される instructions です。
+あなたは記事内容をベースにして質問に答えるヘルパーです。登録されたドキュメントのみを参照してください。
 
-重要な指示:
-1. 提供されたコンテキスト情報（登録された情報）のみを参照して回答してください。
-2. コンテキスト情報がない場合、またはコンテキスト情報だけでは回答できない場合は、「登録された情報からは回答できませんでした」と明確に伝えてください。
-3. 登録された情報を参照して回答した場合は、回答の最後に「参照したドキュメント: [タイトル1], [タイトル2], ...」という形式で参照したドキュメントのタイトルを必ず明記してください。
+【最重要ルール】
+・要約ではなく、質問への回答を書く（質問を冒頭で受けている形にする）
+・箇条書きではなく、自然な文章中心で回答する
+・文脈の自然さを優先する
+・コンテキストの語り口を軽く反映してよい（記事の雰囲気・温度感を取り入れる）
+・要点だけでなく、理由や背景も短く添える
+・コンテキスト以外の情報を絶対に加えない（一般知識を一切混ぜない）
+・要約っぽさを弱め、自然な流れを意識する（導入→説明→まとめの構成）
 
-提供されたコンテキスト情報のみを基に、正確で有用な回答を提供してください。`;
+【自然文スタイルの具体的な指示】
+・1文の長さは40〜120文字の範囲を目安にする
+・段落は2〜3文で区切る
+・接続詞を適度に使用し「人間の文章らしい流れ」を作る
+・専門用語は避け、読みやすさを優先する
+・硬い表現を避け、親しみやすい語調を心がける
+
+【回答の書き方】
+・回答の冒頭で質問を受けている形にする（例：「note初心者がジャンルを決めるときは...」）
+・「理由 → 結論」のストーリーを短くでも入れると読みやすくなる
+・箇条書き型の情報列挙から脱却し、文章として自然に流れるようにする
+・渡されたコンテキストの範囲だけで回答する
+・記事の結論を中心に、質問に直接答える
+・関係ない情報は省く
+・本文の単純な要約ではなく「質問への最適回答」にする
+・要約しすぎず、質問の意図に合わせて必要な情報を選んで回答する
+
+【回答の構成】
+・導入：質問への直接的な回答を冒頭で示す
+・説明：理由や背景を含めて自然に説明する
+・まとめ：必要に応じて簡潔にまとめる
+・結論が唐突に箇条書きで並ばないように調整する
+
+【回答方針】
+1. 提供されたコンテキスト情報（登録された情報）のみを参照して回答してください。自然文スタイルのルールを維持してください。
+2. コンテキスト情報がない場合、またはコンテキスト情報だけでは回答できない場合は、「登録された情報からは回答できませんでした」と明確に伝えてください。この場合も自然文スタイルで返答してください。
+3. 登録された情報を参照して回答した場合は、回答文とは独立した注釈として「参照したドキュメント: [タイトル1], [タイトル2], ...」という形式で参照したドキュメントのタイトルを明記してください（回答文の流れを損なわないように）。
+
+質問に最適化された、自然で人間味のある、人に読まれる文章として回答を提供してください。`;
     }
 
     // アシスタントIDを取得（環境変数から、またはデフォルトのアシスタントを作成）
     let assistantId = process.env.OPENAI_ASSISTANT_ID;
+    // モデルを最適化（gpt-4o-mini または gpt-4o を使用）
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'; // デフォルトは gpt-4o-mini（高速、自然文が安定）
+
     if (!assistantId) {
       // アシスタントが存在しない場合は作成
       const assistant = await openai.beta.assistants.create({
         name: 'RAG Assistant',
         instructions,
-        model: 'gpt-4-turbo-preview',
+        model: model as 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4-turbo-preview',
       });
       assistantId = assistant.id;
     } else {
@@ -292,13 +380,10 @@ export async function POST(
     let assistantContent =
       assistantMessage.content[0]?.type === 'text' ? assistantMessage.content[0].text.value : '';
 
-    // 参照したタイトルが回答に含まれていない場合、自動的に追加
-    if (referencedTitles.length > 0) {
-      const hasTitleReference = referencedTitles.some((title) => assistantContent.includes(title));
-      if (!hasTitleReference && !assistantContent.includes('参照したドキュメント')) {
-        assistantContent += `\n\n参照したドキュメント: ${referencedTitles.join(', ')}`;
-      }
-    }
+    // 参照タイトルを回答文から分離（回答文の流れを損なわないように）
+    // 回答文内に「参照したドキュメント」という文字列が含まれている場合は削除
+    const referencePattern = /\n\n参照したドキュメント[：:]\s*[^\n]+/g;
+    assistantContent = assistantContent.replace(referencePattern, '').trim();
 
     // データベースにアシスタントメッセージを保存
     await db.insert(messagesTable).values({
@@ -315,9 +400,49 @@ export async function POST(
       .set({ updatedAt: new Date() })
       .where(eq(threadsTable.id, parseInt(threadId)));
 
+    // オプション: 回答後にself-checkを実行（自然文か確認）
+    // 注意: 本番環境では必要に応じて有効化
+    const enableSelfCheck = process.env.ENABLE_SELF_CHECK === 'true';
+    let selfCheckResult = null;
+
+    if (enableSelfCheck && referencedTitles.length > 0) {
+      try {
+        const checkPrompt = `以下の回答が自然な文章になっているか、指示に従っているか確認してください。
+
+回答:
+${assistantContent}
+
+確認項目:
+1. 自然な文章になっているか（硬くないか）
+2. 1文の長さが適切か（40-120文字程度）
+3. 段落が適切に区切られているか
+4. 質問に直接答えているか
+
+簡潔に評価してください（1-2文程度）。`;
+
+        const checkResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'あなたは文章の品質を評価する専門家です。簡潔に評価してください。',
+            },
+            { role: 'user', content: checkPrompt },
+          ],
+          max_tokens: 100,
+        });
+
+        selfCheckResult = checkResponse.choices[0]?.message?.content || null;
+      } catch (error) {
+        console.error('Self-check failed:', error);
+        // self-checkが失敗しても回答は返す
+      }
+    }
+
     return NextResponse.json({
       message: assistantContent,
       referencedTitles: referencedTitles.length > 0 ? referencedTitles : undefined,
+      selfCheck: selfCheckResult,
     });
   } catch (error) {
     console.error('Error sending message:', error);

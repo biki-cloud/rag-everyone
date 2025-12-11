@@ -541,7 +541,13 @@ function ChatTab({
 }) {
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [messages, setMessages] = useState<
-    Array<{ role: string; content: string; createdAt: string }>
+    Array<{
+      role: string;
+      content: string;
+      createdAt: string;
+      referencedTitles?: string[];
+      selfCheck?: string;
+    }>
   >([]);
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -627,7 +633,11 @@ function ChatTab({
       });
 
       const searchData = (await searchResponse.json()) as {
-        chunks?: Array<{ content: string; documentTitle?: string }>;
+        chunks?: Array<{
+          content: string;
+          documentTitle?: string;
+          chunkIndex?: number;
+        }>;
       };
       const context = searchData.chunks ?? [];
 
@@ -640,22 +650,29 @@ function ChatTab({
         },
         body: JSON.stringify({
           message: userMessage,
-          context: context.map((c: { content: string; documentTitle?: string }) => ({
+          context: context.map((c) => ({
             content: c.content,
             documentTitle: c.documentTitle,
+            chunkIndex: c.chunkIndex,
           })),
           useRegisteredOnly: useRegisteredOnly,
         }),
       });
 
       if (response.ok) {
-        const data = (await response.json()) as { message: string };
+        const data = (await response.json()) as {
+          message: string;
+          referencedTitles?: string[];
+          selfCheck?: string;
+        };
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
             content: data.message,
             createdAt: new Date().toISOString(),
+            referencedTitles: data.referencedTitles,
+            selfCheck: data.selfCheck,
           },
         ]);
         void loadMessages(selectedThreadId);
@@ -744,6 +761,24 @@ function ChatTab({
                               {message.content}
                             </ReactMarkdown>
                           </div>
+                          {/* 参照ドキュメントタイトルを注釈欄に表示 */}
+                          {message.referencedTitles && message.referencedTitles.length > 0 && (
+                            <div className="mt-3 border-t border-gray-300 pt-2">
+                              <p className="text-xs text-gray-600">
+                                <span className="font-semibold">参照したドキュメント:</span>{' '}
+                                {message.referencedTitles.join(', ')}
+                              </p>
+                            </div>
+                          )}
+                          {/* Self-check結果を表示（開発モード時のみ） */}
+                          {message.selfCheck && (
+                            <div className="mt-2 rounded bg-blue-50 p-2">
+                              <p className="text-xs text-blue-800">
+                                <span className="font-semibold">品質チェック:</span>{' '}
+                                {message.selfCheck}
+                              </p>
+                            </div>
+                          )}
                           <button
                             onClick={async (e) => {
                               try {
