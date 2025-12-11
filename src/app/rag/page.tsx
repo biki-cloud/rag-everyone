@@ -477,6 +477,14 @@ function DocumentsTab({
   );
 }
 
+type SystemPrompt = {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function ChatTab({
   threads,
   session,
@@ -505,6 +513,14 @@ function ChatTab({
   const [editingThreadId, setEditingThreadId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [updatingTitle, setUpdatingTitle] = useState(false);
+  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [promptTitle, setPromptTitle] = useState('');
+  const [promptContent, setPromptContent] = useState('');
+  const [editingPromptId, setEditingPromptId] = useState<number | null>(null);
+  const [savingPrompt, setSavingPrompt] = useState(false);
+  const [deletingPromptId, setDeletingPromptId] = useState<number | null>(null);
+  const [showPromptsList, setShowPromptsList] = useState(false);
 
   const createThread = async () => {
     if (!session) return;
@@ -562,6 +578,126 @@ function ChatTab({
       void loadMessages(selectedThreadId);
     }
   }, [selectedThreadId, session]);
+
+  const fetchSystemPrompts = async () => {
+    if (!session) return;
+    try {
+      const response = await fetch('/api/system-prompts', {
+        headers: {
+          Authorization: `Bearer ${session}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as { prompts?: SystemPrompt[] };
+        setSystemPrompts(data.prompts ?? []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch system prompts:', error);
+    }
+  };
+
+  useEffect(() => {
+    void fetchSystemPrompts();
+  }, [session]);
+
+  const handleSavePrompt = async () => {
+    if (!session || !promptTitle.trim() || !promptContent.trim()) return;
+
+    setSavingPrompt(true);
+    try {
+      if (editingPromptId) {
+        // 更新
+        const response = await fetch(`/api/system-prompts/${editingPromptId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session}`,
+          },
+          body: JSON.stringify({ title: promptTitle, content: promptContent }),
+        });
+
+        if (response.ok) {
+          setIsPromptModalOpen(false);
+          setPromptTitle('');
+          setPromptContent('');
+          setEditingPromptId(null);
+          void fetchSystemPrompts();
+        } else {
+          const error = (await response.json()) as { error?: string };
+          alert(error.error || 'システムプロンプトの更新に失敗しました');
+        }
+      } else {
+        // 新規作成
+        const response = await fetch('/api/system-prompts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session}`,
+          },
+          body: JSON.stringify({ title: promptTitle, content: promptContent }),
+        });
+
+        if (response.ok) {
+          setIsPromptModalOpen(false);
+          setPromptTitle('');
+          setPromptContent('');
+          void fetchSystemPrompts();
+        } else {
+          const error = (await response.json()) as { error?: string };
+          alert(error.error || 'システムプロンプトの作成に失敗しました');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save system prompt:', error);
+      alert('システムプロンプトの保存に失敗しました');
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
+
+  const handleEditPrompt = (prompt: SystemPrompt) => {
+    setEditingPromptId(prompt.id);
+    setPromptTitle(prompt.title);
+    setPromptContent(prompt.content);
+    setIsPromptModalOpen(true);
+  };
+
+  const handleDeletePrompt = async (promptId: number) => {
+    if (!session) return;
+    if (!confirm('本当にこのシステムプロンプトを削除しますか？')) return;
+
+    setDeletingPromptId(promptId);
+    try {
+      const response = await fetch(`/api/system-prompts/${promptId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session}`,
+        },
+      });
+
+      if (response.ok) {
+        void fetchSystemPrompts();
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || 'システムプロンプトの削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to delete system prompt:', error);
+      alert('システムプロンプトの削除に失敗しました');
+    } finally {
+      setDeletingPromptId(null);
+    }
+  };
+
+  const handleInsertPrompt = (content: string) => {
+    setInputMessage((prev) => {
+      if (prev.trim()) {
+        return prev + '\n\n' + content;
+      }
+      return content;
+    });
+  };
 
   const handleThreadClick = (threadId: number) => {
     if (editingThreadId === threadId) {
@@ -912,6 +1048,50 @@ function ChatTab({
               )}
             </div>
             <div className="border-t border-gray-200 bg-gray-50/50 p-4">
+              {/* システムプロンプト選択 */}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const prompt = systemPrompts.find((p) => p.id === parseInt(e.target.value));
+                        if (prompt) {
+                          handleInsertPrompt(prompt.content);
+                        }
+                      }
+                      e.target.value = ''; // リセット
+                    }}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  >
+                    <option value="">システムプロンプトを選択...</option>
+                    {systemPrompts.map((prompt) => (
+                      <option key={prompt.id} value={prompt.id}>
+                        {prompt.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingPromptId(null);
+                    setPromptTitle('');
+                    setPromptContent('');
+                    setIsPromptModalOpen(true);
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  新規登録
+                </button>
+                {systemPrompts.length > 0 && (
+                  <button
+                    onClick={() => setShowPromptsList(!showPromptsList)}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                    title="一覧を表示"
+                  >
+                    {showPromptsList ? '一覧を閉じる' : '一覧'}
+                  </button>
+                )}
+              </div>
               <div className="flex gap-2">
                 <textarea
                   value={inputMessage}
@@ -993,6 +1173,125 @@ function ChatTab({
           </div>
         )}
       </div>
+
+      {/* システムプロンプト管理モーダル */}
+      {isPromptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-lg border border-gray-200 bg-white p-6 shadow-xl">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingPromptId ? 'システムプロンプトを編集' : 'システムプロンプトを登録'}
+              </h2>
+              <button
+                onClick={() => {
+                  setIsPromptModalOpen(false);
+                  setPromptTitle('');
+                  setPromptContent('');
+                  setEditingPromptId(null);
+                }}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">タイトル</label>
+                <input
+                  type="text"
+                  value={promptTitle}
+                  onChange={(e) => setPromptTitle(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  placeholder="システムプロンプトのタイトル"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">内容</label>
+                <textarea
+                  value={promptContent}
+                  onChange={(e) => setPromptContent(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  rows={10}
+                  placeholder="システムプロンプトの内容を入力してください"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPromptModalOpen(false);
+                    setPromptTitle('');
+                    setPromptContent('');
+                    setEditingPromptId(null);
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleSavePrompt}
+                  disabled={savingPrompt || !promptTitle.trim() || !promptContent.trim()}
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingPrompt ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* システムプロンプト一覧 */}
+      {showPromptsList && systemPrompts.length > 0 && (
+        <div className="fixed right-4 top-20 z-40 w-64 rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">システムプロンプト</h3>
+            <button
+              onClick={() => setShowPromptsList(false)}
+              className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+              title="閉じる"
+            >
+              ×
+            </button>
+          </div>
+          <div className="max-h-64 space-y-2 overflow-y-auto">
+            {systemPrompts.map((prompt) => (
+              <div
+                key={prompt.id}
+                className="group rounded-lg border border-gray-200 bg-gray-50 p-2 transition-colors hover:bg-gray-100"
+              >
+                <div className="mb-1 flex items-start justify-between">
+                  <h4 className="text-xs font-medium text-gray-900">{prompt.title}</h4>
+                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      onClick={() => handleEditPrompt(prompt)}
+                      className="rounded px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-200"
+                      title="編集"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => void handleDeletePrompt(prompt.id)}
+                      disabled={deletingPromptId === prompt.id}
+                      className="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      title="削除"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                <p className="mb-2 line-clamp-2 text-xs text-gray-600">{prompt.content}</p>
+                <button
+                  onClick={() => handleInsertPrompt(prompt.content)}
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  貼り付け
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,17 +15,25 @@ export const documentsTable = sqliteTable('documents', {
   title: text('title').notNull(),
   content: text('content').notNull(),
   userId: text('userId').notNull(), // SupabaseのユーザーID
-  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer('updatedAt', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
 
 export const documentChunksTable = sqliteTable('document_chunks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  documentId: integer('documentId').notNull().references(() => documentsTable.id, { onDelete: 'cascade' }),
+  documentId: integer('documentId')
+    .notNull()
+    .references(() => documentsTable.id, { onDelete: 'cascade' }),
   content: text('content').notNull(),
   embedding: text('embedding'), // JSON形式でベクトルを保存
   chunkIndex: integer('chunkIndex').notNull(),
-  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
 
 export const threadsTable = sqliteTable('threads', {
@@ -33,15 +41,36 @@ export const threadsTable = sqliteTable('threads', {
   threadId: text('threadId').notNull().unique(), // OpenAIのThread ID
   userId: text('userId').notNull(), // SupabaseのユーザーID
   title: text('title'),
-  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-  updatedAt: integer('updatedAt', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
 
 export const messagesTable = sqliteTable('messages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  threadId: integer('threadId').notNull().references(() => threadsTable.id, { onDelete: 'cascade' }),
+  threadId: integer('threadId')
+    .notNull()
+    .references(() => threadsTable.id, { onDelete: 'cascade' }),
   role: text('role').notNull(), // 'user' or 'assistant'
   content: text('content').notNull(),
   messageId: text('messageId'), // OpenAIのMessage ID
-  createdAt: integer('createdAt', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const systemPromptsTable = sqliteTable('system_prompts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  userId: text('userId').notNull(), // SupabaseのユーザーID
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
