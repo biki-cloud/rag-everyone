@@ -959,16 +959,45 @@ function ChatTab({
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => handleThreadClick(thread.id)}
-                  onDoubleClick={() => handleThreadDoubleClick(thread)}
-                  className={`w-full px-4 py-2 text-left text-sm transition-colors ${
-                    selectedThreadId === thread.id ? 'font-medium text-white' : 'text-gray-700'
-                  }`}
-                  title="ダブルクリックで編集"
-                >
-                  {thread.title || `会話 ${thread.id}`}
-                </button>
+                <div className="flex items-center gap-2 px-4 py-2">
+                  <button
+                    onClick={() => handleThreadClick(thread.id)}
+                    onDoubleClick={() => handleThreadDoubleClick(thread)}
+                    className={`flex-1 text-left text-sm transition-colors ${
+                      selectedThreadId === thread.id ? 'font-medium text-white' : 'text-gray-700'
+                    }`}
+                    title="ダブルクリックで編集"
+                  >
+                    {thread.title || `会話 ${thread.id}`}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleThreadDoubleClick(thread);
+                    }}
+                    className={`rounded p-1 transition-colors ${
+                      selectedThreadId === thread.id
+                        ? 'text-white hover:bg-gray-700'
+                        : 'text-gray-500 hover:bg-gray-100'
+                    }`}
+                    title="編集"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                </div>
               )}
             </div>
           ))}
