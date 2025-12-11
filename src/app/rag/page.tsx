@@ -816,16 +816,18 @@ function ChatTab({
                             message.referencedDocuments.length > 0 && (
                               <div className="mt-3 border-t border-gray-200 pt-2">
                                 <p className="mb-1.5 text-xs font-medium text-gray-500">
-                                  参照したドキュメント
+                                  参照したドキュメント ({message.referencedDocuments.length})
                                 </p>
                                 <ul className="space-y-1">
-                                  {message.referencedDocuments.map((doc) => (
+                                  {message.referencedDocuments.map((doc, idx) => (
                                     <li key={doc.id}>
                                       <Link
                                         href={`/rag/documents/${doc.id}`}
-                                        className="text-xs text-gray-600 hover:text-gray-900 hover:underline"
+                                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                       >
-                                        {doc.title}
+                                        {idx + 1}. {doc.title}
                                       </Link>
                                     </li>
                                   ))}
