@@ -546,6 +546,7 @@ function ChatTab({
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [creatingThread, setCreatingThread] = useState(false);
+  const [useRegisteredOnly, setUseRegisteredOnly] = useState(false);
 
   const createThread = async () => {
     if (!session) return;
@@ -615,7 +616,7 @@ function ChatTab({
     ]);
 
     try {
-      // RAG検索を実行
+      // RAG検索を実行（登録情報のみモードでない場合、または登録情報のみモードでも検索は実行）
       const searchResponse = await fetch('/api/search', {
         method: 'POST',
         headers: {
@@ -626,7 +627,7 @@ function ChatTab({
       });
 
       const searchData = (await searchResponse.json()) as {
-        chunks?: Array<{ content: string }>;
+        chunks?: Array<{ content: string; documentTitle?: string }>;
       };
       const context = searchData.chunks ?? [];
 
@@ -639,7 +640,11 @@ function ChatTab({
         },
         body: JSON.stringify({
           message: userMessage,
-          context: context.map((c: { content: string }) => ({ content: c.content })),
+          context: context.map((c: { content: string; documentTitle?: string }) => ({
+            content: c.content,
+            documentTitle: c.documentTitle,
+          })),
+          useRegisteredOnly: useRegisteredOnly,
         }),
       });
 
@@ -700,6 +705,22 @@ function ChatTab({
       <div className="flex flex-1 flex-col rounded-lg border">
         {selectedThreadId ? (
           <>
+            <div className="border-b p-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={useRegisteredOnly}
+                  onChange={(e) => setUseRegisteredOnly(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium">登録情報のみを参照して回答する</span>
+              </label>
+              <p className="mt-1 text-xs text-gray-500">
+                {useRegisteredOnly
+                  ? '登録された情報のみを参照します。情報がない場合は回答できません。'
+                  : '登録された情報を優先し、ない場合は一般的な知識で回答します。'}
+              </p>
+            </div>
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {messages.length === 0 ? (
                 <p className="text-center text-gray-500">メッセージがありません</p>

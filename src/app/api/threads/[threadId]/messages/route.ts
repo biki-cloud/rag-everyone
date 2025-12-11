@@ -114,9 +114,10 @@ export async function POST(
     const { threadId } = await params;
     const body = (await request.json()) as {
       message?: string;
-      context?: Array<{ content: string }>;
+      context?: Array<{ content: string; documentTitle?: string }>;
+      useRegisteredOnly?: boolean;
     };
-    const { message, context } = body;
+    const { message, context, useRegisteredOnly } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'メッセージは必須です' }, { status: 400 });
@@ -171,9 +172,25 @@ export async function POST(
     // });
 
     // コンテキストを含めたメッセージを作成
-    const contextText = context
-      ? `以下の情報を参照してください:\n\n${context.map((c: { content: string }) => c.content).join('\n\n')}\n\n`
-      : '';
+    let contextText = '';
+    let referencedTitles: string[] = [];
+
+    if (context && context.length > 0) {
+      // タイトル情報を収集
+      referencedTitles = Array.from(
+        new Set(context.map((c) => c.documentTitle).filter((title): title is string => !!title))
+      );
+
+      // コンテキストをタイトル付きでフォーマット
+      const contextWithTitles = context
+        .map((c) => {
+          const titlePrefix = c.documentTitle ? `[${c.documentTitle}]\n` : '';
+          return `${titlePrefix}${c.content}`;
+        })
+        .join('\n\n');
+
+      contextText = `以下の登録された情報を参照してください:\n\n${contextWithTitles}\n\n`;
+    }
 
     const fullMessage = contextText + message;
 
@@ -192,23 +209,48 @@ export async function POST(
       createdAt: new Date(),
     });
 
+    // アシスタントの指示を構築
+    let instructions = `あなたは登録されたドキュメントを参照して質問に答えるアシスタントです。
+
+重要な指示:
+1. 提供されたコンテキスト情報（登録された情報）がある場合は、それを最優先で参照して回答してください。
+2. コンテキスト情報がない場合、またはコンテキスト情報だけでは回答できない場合は、一般的な知識に基づいて回答してください。
+3. 登録された情報を参照して回答した場合は、回答の最後に「参照したドキュメント: [タイトル1], [タイトル2], ...」という形式で参照したドキュメントのタイトルを必ず明記してください。
+4. 一般的な知識のみで回答した場合は、参照したドキュメントの記載は不要です。
+
+提供されたコンテキスト情報を基に、正確で有用な回答を提供してください。`;
+
+    if (useRegisteredOnly) {
+      instructions = `あなたは登録されたドキュメントのみを参照して質問に答えるアシスタントです。
+
+重要な指示:
+1. 提供されたコンテキスト情報（登録された情報）のみを参照して回答してください。
+2. コンテキスト情報がない場合、またはコンテキスト情報だけでは回答できない場合は、「登録された情報からは回答できませんでした」と明確に伝えてください。
+3. 登録された情報を参照して回答した場合は、回答の最後に「参照したドキュメント: [タイトル1], [タイトル2], ...」という形式で参照したドキュメントのタイトルを必ず明記してください。
+
+提供されたコンテキスト情報のみを基に、正確で有用な回答を提供してください。`;
+    }
+
     // アシスタントIDを取得（環境変数から、またはデフォルトのアシスタントを作成）
     let assistantId = process.env.OPENAI_ASSISTANT_ID;
     if (!assistantId) {
       // アシスタントが存在しない場合は作成
       const assistant = await openai.beta.assistants.create({
         name: 'RAG Assistant',
-        instructions:
-          'あなたは登録されたドキュメントを参照して質問に答えるアシスタントです。提供されたコンテキスト情報を基に、正確で有用な回答を提供してください。',
+        instructions,
         model: 'gpt-4-turbo-preview',
       });
       assistantId = assistant.id;
+    } else {
+      // 既存のアシスタントの指示を更新（動的に変更するため）
+      // 注意: アシスタントの更新は時間がかかる可能性があるため、run時にinstructionsを渡す方法を検討
     }
 
-    // アシスタントを実行
+    // アシスタントを実行（instructionsを動的に渡す）
     // console.log('Creating run with', { threadIdentifier, assistantId });
     const run = await openai.beta.threads.runs.create(threadIdentifier, {
       assistant_id: assistantId,
+      instructions: instructions,
     });
     // console.log('Created run result', run);
 
@@ -247,8 +289,16 @@ export async function POST(
     if (!assistantMessage) {
       return NextResponse.json({ error: 'アシスタントの応答取得に失敗しました' }, { status: 500 });
     }
-    const assistantContent =
+    let assistantContent =
       assistantMessage.content[0]?.type === 'text' ? assistantMessage.content[0].text.value : '';
+
+    // 参照したタイトルが回答に含まれていない場合、自動的に追加
+    if (referencedTitles.length > 0) {
+      const hasTitleReference = referencedTitles.some((title) => assistantContent.includes(title));
+      if (!hasTitleReference && !assistantContent.includes('参照したドキュメント')) {
+        assistantContent += `\n\n参照したドキュメント: ${referencedTitles.join(', ')}`;
+      }
+    }
 
     // データベースにアシスタントメッセージを保存
     await db.insert(messagesTable).values({
@@ -265,7 +315,10 @@ export async function POST(
       .set({ updatedAt: new Date() })
       .where(eq(threadsTable.id, parseInt(threadId)));
 
-    return NextResponse.json({ message: assistantContent });
+    return NextResponse.json({
+      message: assistantContent,
+      referencedTitles: referencedTitles.length > 0 ? referencedTitles : undefined,
+    });
   } catch (error) {
     console.error('Error sending message:', error);
     return NextResponse.json({ error: 'メッセージの送信に失敗しました' }, { status: 500 });
