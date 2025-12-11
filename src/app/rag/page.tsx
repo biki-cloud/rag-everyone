@@ -913,24 +913,45 @@ function ChatTab({
             </div>
             <div className="border-t border-gray-200 bg-gray-50/50 p-4">
               <div className="flex gap-2">
-                <input
-                  type="text"
+                <textarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => {
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       void sendMessage();
                     }
                   }}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:bg-gray-100"
-                  placeholder="メッセージを入力..."
+                  onPaste={(e) => {
+                    // ペースト時の改行を保持
+                    const pastedText = e.clipboardData.getData('text');
+                    if (pastedText) {
+                      e.preventDefault();
+                      const currentValue = inputMessage;
+                      const cursorPosition = (e.target as HTMLTextAreaElement).selectionStart;
+                      const newValue =
+                        currentValue.slice(0, cursorPosition) +
+                        pastedText +
+                        currentValue.slice(cursorPosition);
+                      setInputMessage(newValue);
+                      // カーソル位置を調整
+                      setTimeout(() => {
+                        const textarea = e.target as HTMLTextAreaElement;
+                        const newPosition = cursorPosition + pastedText.length;
+                        textarea.setSelectionRange(newPosition, newPosition);
+                      }, 0);
+                    }
+                  }}
+                  className="flex-1 resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:bg-gray-100"
+                  placeholder="メッセージを入力... (Shift+Enterで改行)"
                   disabled={sending}
+                  rows={3}
+                  style={{ minHeight: '44px', maxHeight: '200px' }}
                 />
                 <button
                   onClick={sendMessage}
                   disabled={sending || !inputMessage.trim()}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="self-end rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sending ? '送信中...' : '送信'}
                 </button>
