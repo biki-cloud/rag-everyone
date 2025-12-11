@@ -761,13 +761,14 @@ function ChatTab({
                               {message.content}
                             </ReactMarkdown>
                           </div>
-                          {/* 参照ドキュメントタイトルを注釈欄に表示 */}
+                          {/* 参照ドキュメントタイトルを注釈欄に表示（Markdown形式） */}
                           {message.referencedTitles && message.referencedTitles.length > 0 && (
                             <div className="mt-3 border-t border-gray-300 pt-2">
-                              <p className="text-xs text-gray-600">
-                                <span className="font-semibold">参照したドキュメント:</span>{' '}
-                                {message.referencedTitles.join(', ')}
-                              </p>
+                              <div className="markdown-content">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {`---\n\n**参照したドキュメント**\n\n${message.referencedTitles.map((title) => `- ${title}`).join('\n')}`}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           )}
                           {/* Self-check結果を表示（開発モード時のみ） */}
@@ -785,10 +786,14 @@ function ChatTab({
                                 await navigator.clipboard.writeText(message.content);
                                 // 簡単なフィードバック（オプション：トーストなどに変更可能）
                                 const button = e.currentTarget;
-                                const originalText = button.textContent;
+                                if (!button) {
+                                  return;
+                                }
+                                const originalText = button.textContent || 'コピー';
                                 button.textContent = 'コピーしました！';
                                 setTimeout(() => {
-                                  if (button.textContent) {
+                                  // ボタンがまだDOMに存在するかチェック
+                                  if (button && button.isConnected) {
                                     button.textContent = originalText;
                                   }
                                 }, 2000);
