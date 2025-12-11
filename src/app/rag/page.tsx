@@ -135,46 +135,56 @@ export default function RAGPage() {
   }
 
   return (
-    <div className="container mx-auto min-h-screen p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">RAGシステム</h1>
-        <div className="flex items-center gap-4">
-          <p className="text-sm text-gray-600">{user?.email}</p>
-          <button
-            onClick={handleLogout}
-            className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
-          >
-            ログアウト
-          </button>
+    <div className="min-h-screen bg-gray-50">
+      <div className="border-b border-gray-200 bg-white">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold text-gray-900">RAGシステム</h1>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-gray-500">{user?.email}</p>
+              <button
+                onClick={handleLogout}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+              >
+                ログアウト
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="mb-4 flex gap-2 border-b">
-        <button
-          onClick={() => setActiveTab('documents')}
-          className={`px-4 py-2 ${
-            activeTab === 'documents' ? 'border-b-2 border-blue-500 font-bold' : 'text-gray-600'
-          }`}
-        >
-          ドキュメント
-        </button>
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={`px-4 py-2 ${
-            activeTab === 'chat' ? 'border-b-2 border-blue-500 font-bold' : 'text-gray-600'
-          }`}
-        >
-          チャット
-        </button>
+      <div className="container mx-auto px-4 py-4">
+        <div className="mb-6 flex gap-1 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'documents'
+                ? 'border-b-2 border-gray-900 text-gray-900'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ドキュメント
+          </button>
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'border-b-2 border-gray-900 text-gray-900'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            チャット
+          </button>
+        </div>
+
+        {activeTab === 'documents' && (
+          <DocumentsTab documents={documents} session={session} onRefresh={fetchDocuments} />
+        )}
+
+        {activeTab === 'chat' && (
+          <ChatTab threads={threads} session={session} onRefresh={fetchThreads} />
+        )}
       </div>
-
-      {activeTab === 'documents' && (
-        <DocumentsTab documents={documents} session={session} onRefresh={fetchDocuments} />
-      )}
-
-      {activeTab === 'chat' && (
-        <ChatTab threads={threads} session={session} onRefresh={fetchThreads} />
-      )}
     </div>
   );
 }
@@ -318,27 +328,27 @@ function DocumentsTab({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border p-4">
-        <h2 className="mb-4 text-xl font-bold">新しいドキュメントを登録</h2>
+    <div className="space-y-6">
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">新しいドキュメントを登録</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium">タイトル</label>
+            <label className="block text-sm font-medium text-gray-700">タイトル</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full rounded border px-3 py-2"
+              className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
               placeholder="ドキュメントのタイトル"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium">コンテンツ</label>
+            <label className="block text-sm font-medium text-gray-700">コンテンツ</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="mt-1 w-full rounded border px-3 py-2"
+              className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
               rows={10}
               placeholder="ドキュメントの内容を入力してください"
               required
@@ -347,7 +357,7 @@ function DocumentsTab({
           <button
             type="submit"
             disabled={submitting}
-            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? '登録中...' : '登録'}
           </button>
@@ -355,17 +365,22 @@ function DocumentsTab({
       </div>
 
       <div>
-        <h2 className="mb-4 text-xl font-bold">登録済みドキュメント</h2>
-        <div className="space-y-2">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">登録済みドキュメント</h2>
+        <div className="space-y-3">
           {documents.length === 0 ? (
-            <p className="text-gray-500">ドキュメントがありません</p>
+            <p className="text-sm text-gray-400">ドキュメントがありません</p>
           ) : (
             documents.map((doc) => (
-              <div key={doc.id} className="rounded-lg border p-4">
+              <div
+                key={doc.id}
+                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-bold">{doc.title}</h3>
-                    <p className="mt-2 text-sm text-gray-600">{doc.content.substring(0, 200)}...</p>
+                    <h3 className="font-medium text-gray-900">{doc.title}</h3>
+                    <p className="mt-1.5 line-clamp-2 text-sm text-gray-600">
+                      {doc.content.substring(0, 200)}...
+                    </p>
                     <p className="mt-2 text-xs text-gray-400">
                       {new Date(doc.createdAt).toLocaleString('ja-JP')}
                     </p>
@@ -373,20 +388,20 @@ function DocumentsTab({
                   <div className="ml-4 flex gap-2">
                     <Link
                       href={`/rag/documents/${doc.id}`}
-                      className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                     >
                       詳細
                     </Link>
                     <button
                       onClick={() => handleEdit(doc.id)}
-                      className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
                     >
                       編集
                     </button>
                     <button
                       onClick={() => handleDelete(doc.id)}
                       disabled={deleting}
-                      className="rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:opacity-50"
+                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
                     >
                       削除
                     </button>
@@ -400,37 +415,37 @@ function DocumentsTab({
 
       {/* 編集モーダル */}
       {isEditModalOpen && selectedDocument && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-4xl rounded-lg bg-white p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">ドキュメントを編集</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-4xl rounded-lg border border-gray-200 bg-white p-6 shadow-xl">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">ドキュメントを編集</h2>
               <button
                 onClick={() => {
                   setIsEditModalOpen(false);
                   setSelectedDocument(null);
                 }}
-                className="rounded bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
               >
                 閉じる
               </button>
             </div>
             <form onSubmit={handleUpdate} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium">タイトル</label>
+                <label className="block text-sm font-medium text-gray-700">タイトル</label>
                 <input
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="mt-1 w-full rounded border px-3 py-2"
+                  className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">コンテンツ</label>
+                <label className="block text-sm font-medium text-gray-700">コンテンツ</label>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="mt-1 w-full rounded border px-3 py-2"
+                  className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
                   rows={15}
                   required
                 />
@@ -442,14 +457,14 @@ function DocumentsTab({
                     setIsEditModalOpen(false);
                     setSelectedDocument(null);
                   }}
-                  className="rounded bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
                   キャンセル
                 </button>
                 <button
                   type="submit"
                   disabled={editing}
-                  className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {editing ? '更新中...' : '更新'}
                 </button>
@@ -485,7 +500,7 @@ function ChatTab({
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [creatingThread, setCreatingThread] = useState(false);
-  const [useRegisteredOnly, setUseRegisteredOnly] = useState(false);
+  const [useRegisteredOnly, setUseRegisteredOnly] = useState(true);
 
   const createThread = async () => {
     if (!session) return;
@@ -640,7 +655,7 @@ function ChatTab({
         <button
           onClick={createThread}
           disabled={creatingThread}
-          className="w-full rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
         >
           {creatingThread ? '作成中...' : '新しい会話'}
         </button>
@@ -649,10 +664,10 @@ function ChatTab({
             <button
               key={thread.id}
               onClick={() => setSelectedThreadId(thread.id)}
-              className={`w-full rounded px-4 py-2 text-left ${
+              className={`w-full rounded-lg px-4 py-2 text-left text-sm transition-colors ${
                 selectedThreadId === thread.id
-                  ? 'bg-blue-100 font-bold'
-                  : 'bg-gray-100 hover:bg-gray-200'
+                  ? 'bg-gray-900 font-medium text-white'
+                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
               {thread.title || `会話 ${thread.id}`}
@@ -661,28 +676,12 @@ function ChatTab({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col rounded-lg border">
+      <div className="flex flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
         {selectedThreadId ? (
           <>
-            <div className="border-b p-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={useRegisteredOnly}
-                  onChange={(e) => setUseRegisteredOnly(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <span className="text-sm font-medium">登録情報のみを参照して回答する</span>
-              </label>
-              <p className="mt-1 text-xs text-gray-500">
-                {useRegisteredOnly
-                  ? '登録された情報のみを参照します。情報がない場合は回答できません。'
-                  : '登録された情報を優先し、ない場合は一般的な知識で回答します。'}
-              </p>
-            </div>
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {messages.length === 0 ? (
-                <p className="text-center text-gray-500">メッセージがありません</p>
+                <p className="text-center text-sm text-gray-400">メッセージがありません</p>
               ) : (
                 messages.map((message, index) => (
                   <div
@@ -690,10 +689,10 @@ function ChatTab({
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      className={`max-w-[80%] rounded-lg px-4 py-2.5 ${
                         message.role === 'user'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-200 text-gray-800'
+                          ? 'bg-gray-900 text-white'
+                          : 'border border-gray-200 bg-gray-50 text-gray-900'
                       }`}
                     >
                       {message.role === 'assistant' ? (
@@ -706,16 +705,16 @@ function ChatTab({
                           {/* 参照ドキュメントタイトルを注釈欄に表示（リンク付き） */}
                           {message.referencedDocuments &&
                             message.referencedDocuments.length > 0 && (
-                              <div className="mt-3 border-t border-gray-300 pt-2">
-                                <p className="mb-2 text-sm font-semibold text-gray-700">
+                              <div className="mt-3 border-t border-gray-200 pt-2">
+                                <p className="mb-1.5 text-xs font-medium text-gray-500">
                                   参照したドキュメント
                                 </p>
-                                <ul className="list-inside list-disc space-y-1">
+                                <ul className="space-y-1">
                                   {message.referencedDocuments.map((doc) => (
                                     <li key={doc.id}>
                                       <Link
                                         href={`/rag/documents/${doc.id}`}
-                                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                                        className="text-xs text-gray-600 hover:text-gray-900 hover:underline"
                                       >
                                         {doc.title}
                                       </Link>
@@ -729,7 +728,7 @@ function ChatTab({
                             message.referencedDocuments.length === 0) &&
                             message.referencedTitles &&
                             message.referencedTitles.length > 0 && (
-                              <div className="mt-3 border-t border-gray-300 pt-2">
+                              <div className="mt-3 border-t border-gray-200 pt-2">
                                 <div className="markdown-content">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                     {`---\n\n**参照したドキュメント**\n\n${message.referencedTitles.map((title) => `- ${title}`).join('\n')}`}
@@ -739,9 +738,9 @@ function ChatTab({
                             )}
                           {/* Self-check結果を表示（開発モード時のみ） */}
                           {message.selfCheck && (
-                            <div className="mt-2 rounded bg-blue-50 p-2">
-                              <p className="text-xs text-blue-800">
-                                <span className="font-semibold">品質チェック:</span>{' '}
+                            <div className="mt-2 rounded-lg border border-gray-200 bg-gray-100 p-2">
+                              <p className="text-xs text-gray-600">
+                                <span className="font-medium">品質チェック:</span>{' '}
                                 {message.selfCheck}
                               </p>
                             </div>
@@ -768,7 +767,7 @@ function ChatTab({
                                 alert('コピーに失敗しました');
                               }
                             }}
-                            className="mt-2 rounded bg-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-400"
+                            className="mt-2 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
                             title="コピー"
                           >
                             コピー
@@ -782,7 +781,7 @@ function ChatTab({
                 ))
               )}
             </div>
-            <div className="border-t p-4">
+            <div className="border-t border-gray-200 bg-gray-50/50 p-4">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -794,23 +793,52 @@ function ChatTab({
                       void sendMessage();
                     }
                   }}
-                  className="flex-1 rounded border px-3 py-2"
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:bg-gray-100"
                   placeholder="メッセージを入力..."
                   disabled={sending}
                 />
                 <button
                   onClick={sendMessage}
                   disabled={sending || !inputMessage.trim()}
-                  className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sending ? '送信中...' : '送信'}
                 </button>
+              </div>
+              <div className="mt-3">
+                <label className="group flex cursor-pointer items-center gap-3">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={useRegisteredOnly}
+                      onChange={(e) => setUseRegisteredOnly(e.target.checked)}
+                      className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 bg-white transition-all checked:border-blue-500 checked:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <svg
+                      className="pointer-events-none absolute left-0.5 top-0.5 h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-sm text-gray-700 transition-colors group-hover:text-gray-900">
+                      登録情報のみを参照して回答する
+                    </span>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      {useRegisteredOnly ? '登録情報のみ参照' : '一般知識も使用可能'}
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">
-            <p className="text-gray-500">会話を選択するか、新しい会話を作成してください</p>
+            <p className="text-sm text-gray-400">会話を選択するか、新しい会話を作成してください</p>
           </div>
         )}
       </div>
