@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type Document = {
   id: number;
@@ -35,7 +37,9 @@ export default function RAGPage() {
     const init = async () => {
       try {
         console.log('[RAG] init: fetching session');
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!isMounted) return;
 
         if (session) {
@@ -148,9 +152,7 @@ export default function RAGPage() {
         <button
           onClick={() => setActiveTab('documents')}
           className={`px-4 py-2 ${
-            activeTab === 'documents'
-              ? 'border-b-2 border-blue-500 font-bold'
-              : 'text-gray-600'
+            activeTab === 'documents' ? 'border-b-2 border-blue-500 font-bold' : 'text-gray-600'
           }`}
         >
           ドキュメント
@@ -158,9 +160,7 @@ export default function RAGPage() {
         <button
           onClick={() => setActiveTab('chat')}
           className={`px-4 py-2 ${
-            activeTab === 'chat'
-              ? 'border-b-2 border-blue-500 font-bold'
-              : 'text-gray-600'
+            activeTab === 'chat' ? 'border-b-2 border-blue-500 font-bold' : 'text-gray-600'
           }`}
         >
           チャット
@@ -268,9 +268,7 @@ function DocumentsTab({
             documents.map((doc) => (
               <div key={doc.id} className="rounded-lg border p-4">
                 <h3 className="font-bold">{doc.title}</h3>
-                <p className="mt-2 text-sm text-gray-600">
-                  {doc.content.substring(0, 200)}...
-                </p>
+                <p className="mt-2 text-sm text-gray-600">{doc.content.substring(0, 200)}...</p>
                 <p className="mt-2 text-xs text-gray-400">
                   {new Date(doc.createdAt).toLocaleString('ja-JP')}
                 </p>
@@ -456,9 +454,7 @@ function ChatTab({
                 messages.map((message, index) => (
                   <div
                     key={index}
-                    className={`flex ${
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
                       className={`max-w-[80%] rounded-lg px-4 py-2 ${
@@ -467,7 +463,40 @@ function ChatTab({
                           : 'bg-gray-200 text-gray-800'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      {message.role === 'assistant' ? (
+                        <>
+                          <div className="markdown-content">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {message.content}
+                            </ReactMarkdown>
+                          </div>
+                          <button
+                            onClick={async (e) => {
+                              try {
+                                await navigator.clipboard.writeText(message.content);
+                                // 簡単なフィードバック（オプション：トーストなどに変更可能）
+                                const button = e.currentTarget;
+                                const originalText = button.textContent;
+                                button.textContent = 'コピーしました！';
+                                setTimeout(() => {
+                                  if (button.textContent) {
+                                    button.textContent = originalText;
+                                  }
+                                }, 2000);
+                              } catch (error) {
+                                console.error('コピーに失敗しました:', error);
+                                alert('コピーに失敗しました');
+                              }
+                            }}
+                            className="mt-2 rounded bg-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-400"
+                            title="コピー"
+                          >
+                            コピー
+                          </button>
+                        </>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      )}
                     </div>
                   </div>
                 ))
@@ -508,4 +537,3 @@ function ChatTab({
     </div>
   );
 }
-
