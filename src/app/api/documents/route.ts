@@ -19,13 +19,43 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
+
+    // トークンの基本検証
+    if (!token || token.trim() === '') {
+      return NextResponse.json(
+        {
+          error: '認証に失敗しました',
+          details: 'トークンが空です',
+        },
+        { status: 401 }
+      );
+    }
+
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser(token);
 
-    if (authError || !user) {
-      return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
+    if (authError) {
+      console.error('Auth error:', authError);
+      return NextResponse.json(
+        {
+          error: '認証に失敗しました',
+          details: authError.message || '認証エラーが発生しました',
+          code: authError.status || 'unknown',
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: '認証に失敗しました',
+          details: 'ユーザー情報が取得できませんでした',
+        },
+        { status: 401 }
+      );
     }
 
     const documents = await db
@@ -50,13 +80,43 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
+
+    // トークンの基本検証
+    if (!token || token.trim() === '') {
+      return NextResponse.json(
+        {
+          error: '認証に失敗しました',
+          details: 'トークンが空です',
+        },
+        { status: 401 }
+      );
+    }
+
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser(token);
 
-    if (authError || !user) {
-      return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
+    if (authError) {
+      console.error('Auth error:', authError);
+      return NextResponse.json(
+        {
+          error: '認証に失敗しました',
+          details: authError.message || '認証エラーが発生しました',
+          code: authError.status || 'unknown',
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: '認証に失敗しました',
+          details: 'ユーザー情報が取得できませんでした',
+        },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
