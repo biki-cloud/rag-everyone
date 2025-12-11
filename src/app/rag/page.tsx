@@ -95,7 +95,7 @@ export default function RAGPage() {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-      const data = await response.json();
+      const data = (await response.json()) as { documents?: Document[] };
       setDocuments(data.documents ?? []);
     } catch (error) {
       console.error('Failed to fetch documents:', error);
@@ -113,7 +113,7 @@ export default function RAGPage() {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-      const data = await response.json();
+      const data = (await response.json()) as { threads?: Thread[] };
       setThreads(data.threads ?? []);
     } catch (error) {
       console.error('Failed to fetch threads:', error);
@@ -190,6 +190,13 @@ function DocumentsTab({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +218,7 @@ function DocumentsTab({
         setContent('');
         void onRefresh();
       } else {
-        const error = await response.json();
+        const error = (await response.json()) as { error?: string };
         alert(error.error || 'ドキュメントの作成に失敗しました');
       }
     } catch (error) {
@@ -219,6 +226,112 @@ function DocumentsTab({
       alert('ドキュメントの作成に失敗しました');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleViewDetail = async (docId: number) => {
+    if (!session) return;
+    try {
+      const response = await fetch(`/api/documents/${docId}`, {
+        headers: {
+          Authorization: `Bearer ${session}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as { document: Document };
+        setSelectedDocument(data.document);
+        setIsDetailModalOpen(true);
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || 'ドキュメントの取得に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to fetch document:', error);
+      alert('ドキュメントの取得に失敗しました');
+    }
+  };
+
+  const handleEdit = async (docId: number) => {
+    if (!session) return;
+    try {
+      const response = await fetch(`/api/documents/${docId}`, {
+        headers: {
+          Authorization: `Bearer ${session}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as { document: Document };
+        setSelectedDocument(data.document);
+        setEditTitle(data.document.title);
+        setEditContent(data.document.content);
+        setIsEditModalOpen(true);
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || 'ドキュメントの取得に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to fetch document:', error);
+      alert('ドキュメントの取得に失敗しました');
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDocument || !editTitle.trim() || !editContent.trim() || !session) return;
+
+    setEditing(true);
+    try {
+      const response = await fetch(`/api/documents/${selectedDocument.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session}`,
+        },
+        body: JSON.stringify({ title: editTitle, content: editContent }),
+      });
+
+      if (response.ok) {
+        setIsEditModalOpen(false);
+        setSelectedDocument(null);
+        void onRefresh();
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || 'ドキュメントの更新に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to update document:', error);
+      alert('ドキュメントの更新に失敗しました');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleDelete = async (docId: number) => {
+    if (!session) return;
+    if (!confirm('本当にこのドキュメントを削除しますか？')) return;
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/documents/${docId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session}`,
+        },
+      });
+
+      if (response.ok) {
+        void onRefresh();
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || 'ドキュメントの削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+      alert('ドキュメントの削除に失敗しました');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -267,16 +380,152 @@ function DocumentsTab({
           ) : (
             documents.map((doc) => (
               <div key={doc.id} className="rounded-lg border p-4">
-                <h3 className="font-bold">{doc.title}</h3>
-                <p className="mt-2 text-sm text-gray-600">{doc.content.substring(0, 200)}...</p>
-                <p className="mt-2 text-xs text-gray-400">
-                  {new Date(doc.createdAt).toLocaleString('ja-JP')}
-                </p>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="font-bold">{doc.title}</h3>
+                    <p className="mt-2 text-sm text-gray-600">{doc.content.substring(0, 200)}...</p>
+                    <p className="mt-2 text-xs text-gray-400">
+                      {new Date(doc.createdAt).toLocaleString('ja-JP')}
+                    </p>
+                  </div>
+                  <div className="ml-4 flex gap-2">
+                    <button
+                      onClick={() => handleViewDetail(doc.id)}
+                      className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+                    >
+                      詳細
+                    </button>
+                    <button
+                      onClick={() => handleEdit(doc.id)}
+                      className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
+                    >
+                      編集
+                    </button>
+                    <button
+                      onClick={() => handleDelete(doc.id)}
+                      disabled={deleting}
+                      className="rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600 disabled:opacity-50"
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
+
+      {/* 詳細表示モーダル */}
+      {isDetailModalOpen && selectedDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-4xl rounded-lg bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold">{selectedDocument.title}</h2>
+              <button
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  setSelectedDocument(null);
+                }}
+                className="rounded bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="mb-4 text-sm text-gray-500">
+              作成日時: {new Date(selectedDocument.createdAt).toLocaleString('ja-JP')}
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto rounded border p-4">
+              <div className="markdown-content prose max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {selectedDocument.content}
+                </ReactMarkdown>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleEdit(selectedDocument.id);
+                }}
+                className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+              >
+                編集
+              </button>
+              <button
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleDelete(selectedDocument.id);
+                }}
+                className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+              >
+                削除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編集モーダル */}
+      {isEditModalOpen && selectedDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-4xl rounded-lg bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold">ドキュメントを編集</h2>
+              <button
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setSelectedDocument(null);
+                }}
+                className="rounded bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+              >
+                閉じる
+              </button>
+            </div>
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium">タイトル</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="mt-1 w-full rounded border px-3 py-2"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">コンテンツ</label>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="mt-1 w-full rounded border px-3 py-2"
+                  rows={15}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setSelectedDocument(null);
+                  }}
+                  className="rounded bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  disabled={editing}
+                  className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {editing ? '更新中...' : '更新'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -310,7 +559,7 @@ function ChatTab({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { thread: { id: number } };
         setSelectedThreadId(data.thread.id);
         setMessages([]);
         void onRefresh();
@@ -332,7 +581,9 @@ function ChatTab({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as {
+          messages?: Array<{ role: string; content: string; createdAt: string }>;
+        };
         setMessages(data.messages ?? []);
       }
     } catch (error) {
@@ -374,7 +625,9 @@ function ChatTab({
         body: JSON.stringify({ query: userMessage, limit: 3 }),
       });
 
-      const searchData = await searchResponse.json();
+      const searchData = (await searchResponse.json()) as {
+        chunks?: Array<{ content: string }>;
+      };
       const context = searchData.chunks ?? [];
 
       // メッセージを送信
@@ -391,7 +644,7 @@ function ChatTab({
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { message: string };
         setMessages((prev) => [
           ...prev,
           {
@@ -402,7 +655,7 @@ function ChatTab({
         ]);
         void loadMessages(selectedThreadId);
       } else {
-        const error = await response.json();
+        const error = (await response.json()) as { error?: string };
         alert(error.error || 'メッセージの送信に失敗しました');
         // ユーザーメッセージを削除
         setMessages((prev) => prev.slice(0, -1));
