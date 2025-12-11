@@ -35,22 +35,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'クエリは必須です' }, { status: 400 });
     }
 
-    // クエリの埋め込みを生成
-    const queryEmbedding = await generateEmbedding(query);
+    // クエリの埋め込みを生成（タイムアウト対策）
+    let queryEmbedding: number[];
+    try {
+      queryEmbedding = await Promise.race([
+        generateEmbedding(query),
+        new Promise<number[]>((_, reject) =>
+          setTimeout(() => reject(new Error('埋め込み生成がタイムアウトしました')), 10000)
+        ),
+      ]);
+    } catch (embeddingError) {
+      console.error('Error generating embedding:', embeddingError);
+      return NextResponse.json(
+        {
+          error: '埋め込み生成に失敗しました',
+          details: embeddingError instanceof Error ? embeddingError.message : '不明なエラー',
+        },
+        { status: 500 }
+      );
+    }
 
     // ユーザーのドキュメントチャンクを取得
-    const allChunks = await db
-      .select({
-        chunkId: documentChunksTable.id,
-        documentId: documentChunksTable.documentId,
-        content: documentChunksTable.content,
-        embedding: documentChunksTable.embedding,
-        chunkIndex: documentChunksTable.chunkIndex,
-        documentTitle: documentsTable.title,
-      })
-      .from(documentChunksTable)
-      .innerJoin(documentsTable, eq(documentChunksTable.documentId, documentsTable.id))
-      .where(eq(documentsTable.userId, user.id));
+    let allChunks;
+    try {
+      allChunks = await db
+        .select({
+          chunkId: documentChunksTable.id,
+          documentId: documentChunksTable.documentId,
+          content: documentChunksTable.content,
+          embedding: documentChunksTable.embedding,
+          chunkIndex: documentChunksTable.chunkIndex,
+          documentTitle: documentsTable.title,
+        })
+        .from(documentChunksTable)
+        .innerJoin(documentsTable, eq(documentChunksTable.documentId, documentsTable.id))
+        .where(eq(documentsTable.userId, user.id));
+    } catch (dbError) {
+      console.error('Error fetching chunks:', dbError);
+      return NextResponse.json(
+        {
+          error: 'ドキュメントチャンクの取得に失敗しました',
+          details: dbError instanceof Error ? dbError.message : '不明なエラー',
+        },
+        { status: 500 }
+      );
+    }
 
     // 各チャンクとの類似度を計算
     const chunksWithSimilarity = allChunks

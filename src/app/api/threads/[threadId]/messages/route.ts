@@ -334,20 +334,28 @@ ${unifiedContext}\n\n`;
 
     const fullMessage = contextText + message;
 
-    // OpenAIのスレッドにメッセージを追加
-    const threadMessage = await openai.beta.threads.messages.create(threadIdentifier, {
-      role: 'user',
-      content: fullMessage,
-    });
+    // 会話履歴を取得（ユーザーメッセージ保存前）
+    const previousMessages = await db
+      .select()
+      .from(messagesTable)
+      .where(eq(messagesTable.threadId, parseInt(threadId)))
+      .orderBy(asc(messagesTable.createdAt));
 
     // データベースにユーザーメッセージを保存
+    const userMessageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     await db.insert(messagesTable).values({
       threadId: parseInt(threadId),
       role: 'user',
       content: message,
-      messageId: threadMessage.id,
+      messageId: userMessageId,
       createdAt: new Date(),
     });
+
+    // 会話履歴をOpenAI形式に変換（最新20件まで、新しく追加したユーザーメッセージは含めない）
+    const conversationHistory = previousMessages.slice(-20).map((msg) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    }));
 
     // アシスタントの指示を構築（質問に最適化されたRAGプロンプト）
     // 注意: これは system-level で定義された文章制御よりも優先される instructions です
@@ -477,135 +485,91 @@ ${unifiedContext}\n\n`;
 【重要】回答は必ずMarkdown形式で返してください。プレーンテキストではなく、Markdown記法（見出し、太字、リストなど）を使用してください。`;
     }
 
-    // アシスタントIDを取得（環境変数から、またはデフォルトのアシスタントを作成）
-    let assistantId = process.env.OPENAI_ASSISTANT_ID;
     // モデルを最適化（gpt-4.1 を使用）
-    const model = process.env.OPENAI_MODEL || 'gpt-4.1'; // デフォルトは gpt-4.1
+    const model = process.env.OPENAI_MODEL || 'gpt-4o'; // デフォルトは gpt-4o
 
-    if (!assistantId) {
-      // アシスタントが存在しない場合は作成
-      const assistant = await openai.beta.assistants.create({
-        name: 'RAG Assistant',
-        instructions,
-        model: model as 'gpt-4.1' | 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4-turbo-preview',
-      });
-      assistantId = assistant.id;
-    } else {
-      // 既存のアシスタントの指示を更新（動的に変更するため）
-      // 注意: アシスタントの更新は時間がかかる可能性があるため、run時にinstructionsを渡す方法を検討
-    }
+    // ストリーミングレスポンスを作成
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          let assistantContent = '';
+          const encoder = new TextEncoder();
 
-    // アシスタントを実行（instructionsを動的に渡す）
-    // 注意: run作成時にinstructionsを渡すことで、既存のアシスタント設定を上書きできる
-    // console.log('Creating run with', { threadIdentifier, assistantId });
-    const run = await openai.beta.threads.runs.create(threadIdentifier, {
-      assistant_id: assistantId,
-      instructions: instructions, // このinstructionsがアシスタントのデフォルト設定より優先される
+          // ストリーミング用のメッセージ配列を作成
+          const messagesForAPI: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> =
+            [
+              { role: 'system', content: instructions },
+              ...conversationHistory,
+              { role: 'user', content: fullMessage },
+            ];
+
+          // ストリーミングでチャット完了を実行
+          const streamResponse = await openai.chat.completions.create({
+            model: model as 'gpt-4o' | 'gpt-4o-mini' | 'gpt-4-turbo-preview' | 'gpt-4',
+            messages: messagesForAPI,
+            stream: true,
+            temperature: 0.7,
+          });
+
+          // ストリームを処理
+          for await (const chunk of streamResponse) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            if (content) {
+              assistantContent += content;
+              // ストリーミングデータを送信
+              const data = JSON.stringify({ type: 'chunk', content });
+              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+            }
+          }
+
+          // 参照タイトルを回答文から分離（回答文の流れを損なわないように）
+          const referencePattern = /\n\n参照したドキュメント[：:]\s*[^\n]+/g;
+          assistantContent = assistantContent.replace(referencePattern, '').trim();
+
+          // データベースにアシスタントメッセージを保存
+          const assistantMessageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          await db.insert(messagesTable).values({
+            threadId: parseInt(threadId),
+            role: 'assistant',
+            content: assistantContent,
+            messageId: assistantMessageId,
+            createdAt: new Date(),
+          });
+
+          // スレッドの更新日時を更新
+          await db
+            .update(threadsTable)
+            .set({ updatedAt: new Date() })
+            .where(eq(threadsTable.id, parseInt(threadId)));
+
+          // 最終データを送信
+          const finalData = JSON.stringify({
+            type: 'done',
+            message: assistantContent,
+            referencedTitles: referencedTitles.length > 0 ? referencedTitles : undefined,
+            referencedDocuments: referencedDocuments.length > 0 ? referencedDocuments : undefined,
+          });
+          controller.enqueue(encoder.encode(`data: ${finalData}\n\n`));
+          controller.close();
+        } catch (error) {
+          console.error('Streaming error:', error);
+          const encoder = new TextEncoder();
+          const errorData = JSON.stringify({
+            type: 'error',
+            error: 'メッセージの送信に失敗しました',
+          });
+          controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+          controller.close();
+        }
+      },
     });
-    // console.log('Created run result', run);
 
-    // run 側に thread_id が無い場合は異常とみなす
-    const runThreadId = (run as any)?.thread_id ?? threadIdentifier;
-    if (!runThreadId || runThreadId === 'undefined' || runThreadId === 'null') {
-      console.error('Run thread_id is invalid', { run, threadIdentifier });
-      return NextResponse.json({ error: 'スレッドIDの解決に失敗しました (run)' }, { status: 500 });
-    }
-
-    // 実行が完了するまで待機
-    // NOTE: SDKの引数順は (runId, { thread_id }) であるため run.id を第一引数にする
-    let runStatus = await openai.beta.threads.runs.retrieve(run.id as any, {
-      thread_id: runThreadId as any,
-    });
-    while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      runStatus = await openai.beta.threads.runs.retrieve(run.id as any, {
-        thread_id: runThreadId as any,
-      });
-    }
-
-    if (runStatus.status !== 'completed') {
-      return NextResponse.json(
-        { error: `実行に失敗しました: ${runStatus.status}` },
-        { status: 500 }
-      );
-    }
-
-    // メッセージを取得
-    const messages = await openai.beta.threads.messages.list(threadIdentifier, {
-      limit: 1,
-    });
-
-    const assistantMessage = messages.data[0];
-    if (!assistantMessage) {
-      return NextResponse.json({ error: 'アシスタントの応答取得に失敗しました' }, { status: 500 });
-    }
-    let assistantContent =
-      assistantMessage.content[0]?.type === 'text' ? assistantMessage.content[0].text.value : '';
-
-    // 参照タイトルを回答文から分離（回答文の流れを損なわないように）
-    // 回答文内に「参照したドキュメント」という文字列が含まれている場合は削除
-    const referencePattern = /\n\n参照したドキュメント[：:]\s*[^\n]+/g;
-    assistantContent = assistantContent.replace(referencePattern, '').trim();
-
-    // データベースにアシスタントメッセージを保存
-    await db.insert(messagesTable).values({
-      threadId: parseInt(threadId),
-      role: 'assistant',
-      content: assistantContent,
-      messageId: assistantMessage.id,
-      createdAt: new Date(),
-    });
-
-    // スレッドの更新日時を更新
-    await db
-      .update(threadsTable)
-      .set({ updatedAt: new Date() })
-      .where(eq(threadsTable.id, parseInt(threadId)));
-
-    // オプション: 回答後にself-checkを実行（自然文か確認）
-    // 注意: 本番環境では必要に応じて有効化
-    const enableSelfCheck = process.env.ENABLE_SELF_CHECK === 'true';
-    let selfCheckResult = null;
-
-    if (enableSelfCheck && referencedTitles.length > 0) {
-      try {
-        const checkPrompt = `以下の回答が自然な文章になっているか、指示に従っているか確認してください。
-
-回答:
-${assistantContent}
-
-確認項目:
-1. 自然な文章になっているか（硬くないか）
-2. 1文の長さが適切か（40-120文字程度）
-3. 段落が適切に区切られているか
-4. 質問に直接答えているか
-
-簡潔に評価してください（1-2文程度）。`;
-
-        const checkResponse = await openai.chat.completions.create({
-          model: 'gpt-4.1',
-          messages: [
-            {
-              role: 'system',
-              content: 'あなたは文章の品質を評価する専門家です。簡潔に評価してください。',
-            },
-            { role: 'user', content: checkPrompt },
-          ],
-          max_tokens: 100,
-        });
-
-        selfCheckResult = checkResponse.choices[0]?.message?.content || null;
-      } catch (error) {
-        console.error('Self-check failed:', error);
-        // self-checkが失敗しても回答は返す
-      }
-    }
-
-    return NextResponse.json({
-      message: assistantContent,
-      referencedTitles: referencedTitles.length > 0 ? referencedTitles : undefined,
-      referencedDocuments: referencedDocuments.length > 0 ? referencedDocuments : undefined,
-      selfCheck: selfCheckResult,
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
     });
   } catch (error) {
     console.error('Error sending message:', error);

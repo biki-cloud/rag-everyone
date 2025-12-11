@@ -768,25 +768,52 @@ function ChatTab({
 
     try {
       // RAG検索を実行（登録情報のみモードでない場合、または登録情報のみモードでも検索は実行）
-      const searchResponse = await fetch('/api/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session}`,
+      let context: Array<{
+        content: string;
+        documentTitle?: string;
+        chunkIndex?: number;
+      }> = [];
+
+      try {
+        const searchResponse = await fetch('/api/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session}`,
+          },
+          body: JSON.stringify({ query: userMessage, limit: 3 }),
+        });
+
+        if (searchResponse.ok) {
+          const searchData = (await searchResponse.json()) as {
+            chunks?: Array<{
+              content: string;
+              documentTitle?: string;
+              chunkIndex?: number;
+            }>;
+          };
+          context = searchData.chunks ?? [];
+        } else {
+          console.warn('検索APIが失敗しましたが、続行します:', searchResponse.status);
+          // 検索が失敗しても空のコンテキストで続行
+        }
+      } catch (searchError) {
+        console.error('検索エラー:', searchError);
+        // 検索エラーが発生しても空のコンテキストで続行
+      }
+
+      // アシスタントメッセージのプレースホルダーを追加
+      const assistantMessageIndex = messages.length + 1; // ユーザーメッセージの後に追加される
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: '',
+          createdAt: new Date().toISOString(),
         },
-        body: JSON.stringify({ query: userMessage, limit: 3 }),
-      });
+      ]);
 
-      const searchData = (await searchResponse.json()) as {
-        chunks?: Array<{
-          content: string;
-          documentTitle?: string;
-          chunkIndex?: number;
-        }>;
-      };
-      const context = searchData.chunks ?? [];
-
-      // メッセージを送信
+      // メッセージを送信（ストリーミング）
       const response = await fetch(`/api/threads/${selectedThreadId}/messages`, {
         method: 'POST',
         headers: {
@@ -804,30 +831,126 @@ function ChatTab({
         }),
       });
 
-      if (response.ok) {
-        const data = (await response.json()) as {
-          message: string;
-          referencedTitles?: string[];
-          referencedDocuments?: Array<{ title: string; id: number }>;
-          selfCheck?: string;
-        };
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: data.message,
-            createdAt: new Date().toISOString(),
-            referencedTitles: data.referencedTitles,
-            referencedDocuments: data.referencedDocuments,
-            selfCheck: data.selfCheck,
-          },
-        ]);
-        // loadMessagesは呼び出さない（APIレスポンスのreferencedDocumentsを保持するため）
-      } else {
+      if (!response.ok) {
         const error = (await response.json()) as { error?: string };
         alert(error.error || 'メッセージの送信に失敗しました');
-        // ユーザーメッセージを削除
-        setMessages((prev) => prev.slice(0, -1));
+        // ユーザーメッセージとアシスタントメッセージを削除
+        setMessages((prev) => prev.slice(0, -2));
+        return;
+      }
+
+      // ストリーミングレスポンスを処理
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedContent = '';
+
+      if (!reader) {
+        throw new Error('ストリームの読み取りに失敗しました');
+      }
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          if (!value) continue;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // 最後の不完全な行を保持
+
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'chunk') {
+                  accumulatedContent += data.content;
+                  // アシスタントメッセージをリアルタイムで更新
+                  setMessages((prev) => {
+                    const newMessages = [...prev];
+                    const assistantMsg = newMessages[assistantMessageIndex];
+                    if (assistantMsg) {
+                      assistantMsg.content = accumulatedContent;
+                    }
+                    return newMessages;
+                  });
+                } else if (data.type === 'done') {
+                  // 最終メッセージを更新
+                  setMessages((prev) => {
+                    const newMessages = [...prev];
+                    const assistantMsg = newMessages[assistantMessageIndex];
+                    if (assistantMsg) {
+                      assistantMsg.content = data.message;
+                      assistantMsg.referencedTitles = data.referencedTitles;
+                      assistantMsg.referencedDocuments = data.referencedDocuments;
+                    }
+                    return newMessages;
+                  });
+                  // ストリーミング完了
+                  break;
+                } else if (data.type === 'error') {
+                  throw new Error(data.error || 'エラーが発生しました');
+                }
+              } catch (e) {
+                // JSONパースエラーは無視して続行（不完全なデータの可能性）
+                if (e instanceof SyntaxError) {
+                  continue;
+                }
+                console.error('Failed to parse stream data:', e);
+                throw e;
+              }
+            }
+          }
+        }
+
+        // ストリームが正常に終了したが、doneイベントが来なかった場合の処理
+        if (accumulatedContent && buffer.trim()) {
+          // バッファに残っているデータを処理
+          const remainingLines = buffer.split('\n').filter((line) => line.trim());
+          for (const line of remainingLines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'done') {
+                  setMessages((prev) => {
+                    const newMessages = [...prev];
+                    const assistantMsg = newMessages[assistantMessageIndex];
+                    if (assistantMsg) {
+                      assistantMsg.content = data.message || accumulatedContent;
+                      assistantMsg.referencedTitles = data.referencedTitles;
+                      assistantMsg.referencedDocuments = data.referencedDocuments;
+                    }
+                    return newMessages;
+                  });
+                }
+              } catch (e) {
+                // パースエラーは無視
+              }
+            }
+          }
+        }
+      } catch (streamError) {
+        console.error('Streaming error:', streamError);
+        // ストリーミングが中断された場合でも、既に取得したコンテンツがあれば保持
+        if (accumulatedContent) {
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            const assistantMsg = newMessages[assistantMessageIndex];
+            if (assistantMsg && !assistantMsg.content) {
+              assistantMsg.content = accumulatedContent;
+            }
+            return newMessages;
+          });
+          alert('ストリーミングが中断されましたが、取得できた内容を表示しています。');
+        } else {
+          alert(
+            streamError instanceof Error ? streamError.message : 'メッセージの送信に失敗しました'
+          );
+          // ユーザーメッセージとアシスタントメッセージを削除
+          setMessages((prev) => prev.slice(0, -2));
+        }
       }
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -1033,11 +1156,22 @@ function ChatTab({
                     >
                       {message.role === 'assistant' ? (
                         <>
-                          <div className="markdown-content">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {message.content}
-                            </ReactMarkdown>
-                          </div>
+                          {message.content ? (
+                            <div className="markdown-content">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-gray-500">
+                              <div className="flex gap-1">
+                                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></div>
+                                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></div>
+                                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400"></div>
+                              </div>
+                              <span className="text-sm">回答を生成しています...</span>
+                            </div>
+                          )}
                           {/* 参照ドキュメントタイトルを注釈欄に表示（リンク付き） */}
                           {message.referencedDocuments &&
                             message.referencedDocuments.length > 0 && (
