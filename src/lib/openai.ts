@@ -9,11 +9,15 @@ export const openai = new OpenAI({
 export function chunkText(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
   const chunks: string[] = [];
   let start = 0;
+  const step = Math.max(1, chunkSize - overlap);
 
   while (start < text.length) {
     const end = Math.min(start + chunkSize, text.length);
     chunks.push(text.slice(start, end));
-    start = end - overlap;
+    if (end === text.length) {
+      break;
+    }
+    start = start + step;
   }
 
   return chunks;
@@ -48,4 +52,3 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   const denominator = Math.sqrt(normA) * Math.sqrt(normB);
   return denominator === 0 ? 0 : dotProduct / denominator;
 }
-

@@ -10,6 +10,31 @@ export const runtime = 'edge';
 
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
+// OpenAIに安全に渡せるThread IDを保証する共通処理
+async function ensureThreadIdentifier(threadIdValue: string | null | undefined, recordId: number) {
+  // 余計な空白や文字列 "undefined" / "null" を排除してから判定
+  const normalized = threadIdValue?.trim();
+  const needsNewThread = !normalized || normalized === 'undefined' || normalized === 'null';
+
+  let threadIdentifier = normalized;
+
+  if (needsNewThread) {
+    const newThread = await openai.beta.threads.create();
+    threadIdentifier = newThread.id;
+    await db
+      .update(threadsTable)
+      .set({ threadId: threadIdentifier, updatedAt: new Date() })
+      .where(eq(threadsTable.id, recordId));
+  }
+
+  if (!threadIdentifier || threadIdentifier === 'undefined' || threadIdentifier === 'null') {
+    // データ不整合を即座に検出して呼び出し元で 500 を返す
+    throw new Error(`スレッドIDの取得に失敗しました (recordId=${recordId})`);
+  }
+
+  return threadIdentifier;
+}
+
 // メッセージ一覧を取得
 export async function GET(
   request: NextRequest,
@@ -44,16 +69,11 @@ export async function GET(
     }
 
     // threadId が欠損している古いレコードへの対処
-    let threadIdentifier = thread.threadId;
-    if (!threadIdentifier) {
-      const newThread = await openai.beta.threads.create();
-      threadIdentifier = newThread.id;
-      await db
-        .update(threadsTable)
-        .set({ threadId: threadIdentifier, updatedAt: new Date() })
-        .where(eq(threadsTable.id, parseInt(threadId)));
-    }
-    if (!threadIdentifier) {
+    let threadIdentifier: string;
+    try {
+      threadIdentifier = await ensureThreadIdentifier(thread.threadId, parseInt(threadId));
+    } catch (e) {
+      console.error('Failed to ensure threadIdentifier in GET messages:', e);
       return NextResponse.json({ error: 'スレッドIDの取得に失敗しました' }, { status: 500 });
     }
 
@@ -92,7 +112,10 @@ export async function POST(
     }
 
     const { threadId } = await params;
-    const body = await request.json();
+    const body = (await request.json()) as {
+      message?: string;
+      context?: Array<{ content: string }>;
+    };
     const { message, context } = body;
 
     if (!message) {
@@ -109,16 +132,43 @@ export async function POST(
       return NextResponse.json({ error: 'スレッドが見つかりません' }, { status: 404 });
     }
 
-    // threadId が欠損している古いレコードへの対処
-    let threadIdentifier = thread.threadId;
-    if (!threadIdentifier) {
-      const newThread = await openai.beta.threads.create();
-      threadIdentifier = newThread.id;
-      await db
-        .update(threadsTable)
-        .set({ threadId: threadIdentifier, updatedAt: new Date() })
-        .where(eq(threadsTable.id, parseInt(threadId)));
+    // threadId が欠損している古いレコードへの対処（OpenAI呼び出し直前で必ずガード）
+    // console.log('Thread record before ensureThreadIdentifier', {
+    //   threadIdParam: threadId,
+    //   dbThreadId: thread.threadId,
+    //   userId: thread.userId,
+    // });
+
+    let threadIdentifier: string;
+    try {
+      threadIdentifier = await ensureThreadIdentifier(thread.threadId, parseInt(threadId));
+    } catch (e) {
+      console.error('Invalid threadIdentifier before OpenAI call:', {
+        threadIdParam: threadId,
+        dbThreadId: thread.threadId,
+        error: e,
+      });
+      return NextResponse.json(
+        { error: 'スレッドIDが不正なため、OpenAIを呼び出せません' },
+        { status: 500 }
+      );
     }
+
+    // 念のため undefined/空文字をここで遮断（OpenAI SDKに渡さない）
+    if (!threadIdentifier || threadIdentifier === 'undefined' || threadIdentifier === 'null') {
+      console.error('Thread identifier is still invalid after ensureThreadIdentifier', {
+        threadIdParam: threadId,
+        dbThreadId: thread.threadId,
+        resolvedThreadIdentifier: threadIdentifier,
+      });
+      return NextResponse.json({ error: 'スレッドIDの解決に失敗しました' }, { status: 500 });
+    }
+
+    // デバッグ: この段階で必ず有効な threadIdentifier を確認
+    // console.log('Resolved threadIdentifier before OpenAI calls', {
+    //   threadIdParam: threadId,
+    //   resolvedThreadIdentifier: threadIdentifier,
+    // });
 
     // コンテキストを含めたメッセージを作成
     const contextText = context
@@ -156,15 +206,29 @@ export async function POST(
     }
 
     // アシスタントを実行
+    // console.log('Creating run with', { threadIdentifier, assistantId });
     const run = await openai.beta.threads.runs.create(threadIdentifier, {
       assistant_id: assistantId,
     });
+    // console.log('Created run result', run);
+
+    // run 側に thread_id が無い場合は異常とみなす
+    const runThreadId = (run as any)?.thread_id ?? threadIdentifier;
+    if (!runThreadId || runThreadId === 'undefined' || runThreadId === 'null') {
+      console.error('Run thread_id is invalid', { run, threadIdentifier });
+      return NextResponse.json({ error: 'スレッドIDの解決に失敗しました (run)' }, { status: 500 });
+    }
 
     // 実行が完了するまで待機
-    let runStatus = await openai.beta.threads.runs.retrieve(threadIdentifier, run.id);
+    // NOTE: SDKの引数順は (runId, { thread_id }) であるため run.id を第一引数にする
+    let runStatus = await openai.beta.threads.runs.retrieve(run.id as any, {
+      thread_id: runThreadId as any,
+    });
     while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      runStatus = await openai.beta.threads.runs.retrieve(threadIdentifier, run.id);
+      runStatus = await openai.beta.threads.runs.retrieve(run.id as any, {
+        thread_id: runThreadId as any,
+      });
     }
 
     if (runStatus.status !== 'completed') {
@@ -180,6 +244,9 @@ export async function POST(
     });
 
     const assistantMessage = messages.data[0];
+    if (!assistantMessage) {
+      return NextResponse.json({ error: 'アシスタントの応答取得に失敗しました' }, { status: 500 });
+    }
     const assistantContent =
       assistantMessage.content[0]?.type === 'text' ? assistantMessage.content[0].text.value : '';
 
