@@ -485,8 +485,8 @@ ${unifiedContext}\n\n`;
 【重要】回答は必ずMarkdown形式で返してください。プレーンテキストではなく、Markdown記法（見出し、太字、リストなど）を使用してください。`;
     }
 
-    // モデルを最適化（gpt-4.1 を使用）
-    const model = process.env.OPENAI_MODEL || 'gpt-4o'; // デフォルトは gpt-4o
+    // モデルを最適化（gpt-5 を使用）
+    const model = process.env.OPENAI_MODEL || 'gpt-5'; // デフォルトは gpt-5
 
     // ストリーミングレスポンスを作成
     const stream = new ReadableStream({
@@ -504,12 +504,19 @@ ${unifiedContext}\n\n`;
             ];
 
           // ストリーミングでチャット完了を実行
-          const streamResponse = await openai.chat.completions.create({
-            model: model as 'gpt-4o' | 'gpt-4o-mini' | 'gpt-4-turbo-preview' | 'gpt-4',
+          // gpt-5モデルの場合はtemperatureパラメータを設定しない（デフォルト値1のみサポート）
+          const requestOptions: any = {
+            model: model as 'gpt-5' | 'gpt-4o' | 'gpt-4o-mini' | 'gpt-4-turbo-preview' | 'gpt-4',
             messages: messagesForAPI,
             stream: true,
-            temperature: 0.7,
-          });
+          };
+
+          // gpt-5以外のモデルの場合のみtemperatureを設定
+          if (model !== 'gpt-5') {
+            requestOptions.temperature = 0.7;
+          }
+
+          const streamResponse = await openai.chat.completions.create(requestOptions);
 
           // ストリームを処理
           for await (const chunk of streamResponse) {

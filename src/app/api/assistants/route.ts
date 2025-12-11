@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       name: 'RAG Assistant',
       instructions:
         'あなたは登録されたドキュメントを参照して質問に答えるアシスタントです。提供されたコンテキスト情報を基に、正確で有用な回答を提供してください。',
-      model: 'gpt-4.1',
+      model: 'gpt-5',
     });
 
     return NextResponse.json({ assistantId: assistant.id });
