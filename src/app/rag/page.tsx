@@ -840,7 +840,7 @@ function ChatTab({
   };
 
   return (
-    <div className="flex h-[calc(100vh-200px)] gap-4">
+    <div className="flex h-[calc(100vh-80px)] gap-4">
       {/* モバイル用サイドバートグルボタン */}
       <div className="fixed bottom-4 right-4 z-30 sm:hidden">
         <button
@@ -1015,7 +1015,7 @@ function ChatTab({
       <div className="flex flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
         {selectedThreadId ? (
           <>
-            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="flex-1 space-y-5 overflow-y-auto p-8">
               {messages.length === 0 ? (
                 <p className="text-center text-sm text-gray-400">メッセージがありません</p>
               ) : (
@@ -1025,7 +1025,7 @@ function ChatTab({
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-lg px-3 py-2 sm:max-w-[80%] sm:px-4 sm:py-2.5 ${
+                      className={`max-w-[95%] rounded-lg px-5 py-3 sm:max-w-[90%] sm:px-6 sm:py-4 ${
                         message.role === 'user'
                           ? 'bg-gray-900 text-white'
                           : 'border border-gray-200 bg-gray-50 text-gray-900'
