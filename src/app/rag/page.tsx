@@ -501,6 +501,7 @@ function ChatTab({
   const [sending, setSending] = useState(false);
   const [creatingThread, setCreatingThread] = useState(false);
   const [useRegisteredOnly, setUseRegisteredOnly] = useState(true);
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
 
   const createThread = async () => {
     if (!session) return;
@@ -749,32 +750,51 @@ function ChatTab({
                             onClick={async (e) => {
                               try {
                                 await navigator.clipboard.writeText(message.content);
-                                // 簡単なフィードバック（オプション：トーストなどに変更可能）
-                                const button = e.currentTarget;
-                                if (!button) {
-                                  return;
-                                }
-                                const originalText = button.textContent || 'コピー';
-                                button.textContent = 'コピーしました！';
+                                setCopiedMessageIndex(index);
                                 setTimeout(() => {
-                                  // ボタンがまだDOMに存在するかチェック
-                                  if (button && button.isConnected) {
-                                    button.textContent = originalText;
-                                  }
+                                  setCopiedMessageIndex(null);
                                 }, 2000);
                               } catch (error) {
                                 console.error('コピーに失敗しました:', error);
                                 alert('コピーに失敗しました');
                               }
                             }}
-                            className="mt-2 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+                            className={`mt-2 rounded-lg border px-2 py-1 text-xs transition-colors ${
+                              copiedMessageIndex === index
+                                ? 'border-green-500 bg-green-50 text-green-700'
+                                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
                             title="コピー"
                           >
-                            コピー
+                            {copiedMessageIndex === index ? '✓ コピーしました！' : 'コピー'}
                           </button>
                         </>
                       ) : (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <>
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          <button
+                            onClick={async (e) => {
+                              try {
+                                await navigator.clipboard.writeText(message.content);
+                                setCopiedMessageIndex(index);
+                                setTimeout(() => {
+                                  setCopiedMessageIndex(null);
+                                }, 2000);
+                              } catch (error) {
+                                console.error('コピーに失敗しました:', error);
+                                alert('コピーに失敗しました');
+                              }
+                            }}
+                            className={`mt-2 rounded-lg border px-2 py-1 text-xs transition-colors ${
+                              copiedMessageIndex === index
+                                ? 'border-green-400 bg-green-500 text-white'
+                                : 'border-gray-400 bg-gray-800 text-white hover:bg-gray-700'
+                            }`}
+                            title="コピー"
+                          >
+                            {copiedMessageIndex === index ? '✓ コピーしました！' : 'コピー'}
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
