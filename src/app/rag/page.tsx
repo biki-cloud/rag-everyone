@@ -522,7 +522,14 @@ function ChatTab({
 
       if (response.ok) {
         const data = (await response.json()) as {
-          messages?: Array<{ role: string; content: string; createdAt: string }>;
+          messages?: Array<{
+            role: string;
+            content: string;
+            createdAt: string;
+            referencedTitles?: string[];
+            referencedDocuments?: Array<{ title: string; id: number }>;
+            selfCheck?: string;
+          }>;
         };
         setMessages(data.messages ?? []);
       }
@@ -610,7 +617,7 @@ function ChatTab({
             selfCheck: data.selfCheck,
           },
         ]);
-        void loadMessages(selectedThreadId);
+        // loadMessagesは呼び出さない（APIレスポンスのreferencedDocumentsを保持するため）
       } else {
         const error = (await response.json()) as { error?: string };
         alert(error.error || 'メッセージの送信に失敗しました');

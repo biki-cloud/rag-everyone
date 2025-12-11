@@ -83,7 +83,72 @@ export async function GET(
       .where(eq(messagesTable.threadId, parseInt(threadId)))
       .orderBy(asc(messagesTable.createdAt));
 
-    return NextResponse.json({ messages });
+    // アシスタントメッセージから参照タイトルを抽出し、IDを取得
+    // まず、ユーザーの全ドキュメントを取得してタイトル→IDのマッピングを作成
+    const allDocuments = await db
+      .select({
+        id: documentsTable.id,
+        title: documentsTable.title,
+      })
+      .from(documentsTable)
+      .where(eq(documentsTable.userId, user.id));
+
+    const titleToIdMap = new Map<string, number>();
+    for (const doc of allDocuments) {
+      titleToIdMap.set(doc.title, doc.id);
+    }
+
+    const messagesWithReferences = messages.map((msg) => {
+      if (msg.role === 'assistant') {
+        // メッセージコンテンツから「参照したドキュメント」セクションを抽出
+        // パターン1: "---\n\n**参照したドキュメント**\n\n- タイトル1\n- タイトル2"
+        // パターン2: "参照したドキュメント:\n- タイトル1\n- タイトル2"
+        const referencePatterns = [
+          /(?:---\s*\n)?\*\*参照したドキュメント\*\*\s*\n\n?([\s\S]*?)(?:\n\n---|\n\n\*\*|$)/i,
+          /参照したドキュメント[：:\s]*\n\n?([\s\S]*?)(?:\n\n---|\n\n\*\*|$)/i,
+        ];
+
+        let titles: string[] = [];
+        for (const pattern of referencePatterns) {
+          const match = msg.content.match(pattern);
+          if (match && match[1]) {
+            const referenceSection = match[1];
+            // リストアイテム（- または * で始まる行）からタイトルを抽出
+            const titlePattern = /^[-*]\s+(.+)$/gm;
+            const foundTitles: string[] = [];
+            let titleMatch: RegExpExecArray | null;
+            while ((titleMatch = titlePattern.exec(referenceSection)) !== null) {
+              const title = titleMatch[1];
+              if (title) {
+                foundTitles.push(title.trim());
+              }
+            }
+            if (foundTitles.length > 0) {
+              titles = foundTitles;
+              break;
+            }
+          }
+        }
+
+        if (titles.length > 0) {
+          const referencedDocuments = titles
+            .map((title) => {
+              const id = titleToIdMap.get(title);
+              return id ? { title, id } : null;
+            })
+            .filter((doc): doc is { title: string; id: number } => doc !== null);
+
+          return {
+            ...msg,
+            referencedTitles: titles,
+            referencedDocuments: referencedDocuments.length > 0 ? referencedDocuments : undefined,
+          };
+        }
+      }
+      return msg;
+    });
+
+    return NextResponse.json({ messages: messagesWithReferences });
   } catch (error) {
     console.error('Error fetching messages:', error);
     return NextResponse.json({ error: 'メッセージの取得に失敗しました' }, { status: 500 });
