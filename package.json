@@ -1,12 +1,12 @@
 {
-  "name": "nextjs-d1-drizzle-cloudflare-pages",
+  "name": "rag-everyone",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "db:generate": "drizzle-kit generate",
-    "db:migrate:dev": "pnpm setup:dev && wrangler d1 migrations apply nextjs-d1-drizzle-cloudflare-pages --local",
-    "db:migrate:prod": "pnpm setup:prod && wrangler d1 migrations apply nextjs-d1-drizzle-cloudflare-pages --remote",
+    "db:migrate:dev": "pnpm setup:dev && wrangler d1 migrations apply rag-everyone --local",
+    "db:migrate:prod": "pnpm setup:prod && wrangler d1 migrations apply rag-everyone --remote",
     "db:studio:dev": "pnpm setup:dev && cross-env DB_LOCAL_PATH=$(find .wrangler/state/v3/d1/miniflare-D1DatabaseObject -type f -name '*.sqlite' -print -quit) drizzle-kit studio --port 3094",
     "db:studio:prod": "pnpm setup:prod && drizzle-kit studio --port 3098",
     "build": "next build",
