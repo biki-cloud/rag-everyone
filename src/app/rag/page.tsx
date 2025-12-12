@@ -522,6 +522,7 @@ function ChatTab({
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [deletingPromptId, setDeletingPromptId] = useState<number | null>(null);
   const [showPromptsList, setShowPromptsList] = useState(false);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 
   const createThread = async () => {
     if (!session) return;
@@ -1242,7 +1243,7 @@ function ChatTab({
                         </>
                       ) : (
                         <>
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          <p className="whitespace-pre-wrap text-sm">{message.content}</p>
                           <button
                             onClick={async (e) => {
                               try {
@@ -1273,52 +1274,90 @@ function ChatTab({
               )}
             </div>
             <div className="border-t border-gray-200 bg-gray-50/50 p-4">
-              {/* システムプロンプト選択 */}
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <div className="relative flex-1">
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const prompt = systemPrompts.find((p) => p.id === parseInt(e.target.value));
-                        if (prompt) {
-                          handleInsertPrompt(prompt.content);
-                        }
-                      }
-                      e.target.value = ''; // リセット
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  >
-                    <option value="">システムプロンプトを選択...</option>
-                    {systemPrompts.map((prompt) => (
-                      <option key={prompt.id} value={prompt.id}>
-                        {prompt.title}
-                      </option>
-                    ))}
-                  </select>
+              {/* 設定セクション（折りたたみ可能） */}
+              {isSettingsExpanded && (
+                <div className="mb-3 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+                  {/* システムプロンプト選択 */}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative flex-1">
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const prompt = systemPrompts.find(
+                              (p) => p.id === parseInt(e.target.value)
+                            );
+                            if (prompt) {
+                              handleInsertPrompt(prompt.content);
+                            }
+                          }
+                          e.target.value = ''; // リセット
+                        }}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      >
+                        <option value="">システムプロンプトを選択...</option>
+                        {systemPrompts.map((prompt) => (
+                          <option key={prompt.id} value={prompt.id}>
+                            {prompt.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingPromptId(null);
+                          setPromptTitle('');
+                          setPromptContent('');
+                          setIsPromptModalOpen(true);
+                        }}
+                        className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:flex-none"
+                      >
+                        新規登録
+                      </button>
+                      {systemPrompts.length > 0 && (
+                        <button
+                          onClick={() => setShowPromptsList(!showPromptsList)}
+                          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:flex-none"
+                          title="一覧を表示"
+                        >
+                          {showPromptsList ? '一覧を閉じる' : '一覧'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {/* 登録情報のみを参照して回答する */}
+                  <div>
+                    <label className="group flex cursor-pointer items-center gap-3">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={useRegisteredOnly}
+                          onChange={(e) => setUseRegisteredOnly(e.target.checked)}
+                          className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 bg-white transition-all checked:border-blue-500 checked:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <svg
+                          className="pointer-events-none absolute left-0.5 top-0.5 h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-sm text-gray-700 transition-colors group-hover:text-gray-900">
+                          登録情報のみを参照して回答する
+                        </span>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {useRegisteredOnly ? '登録情報のみ参照' : '一般知識も使用可能'}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingPromptId(null);
-                      setPromptTitle('');
-                      setPromptContent('');
-                      setIsPromptModalOpen(true);
-                    }}
-                    className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:flex-none"
-                  >
-                    新規登録
-                  </button>
-                  {systemPrompts.length > 0 && (
-                    <button
-                      onClick={() => setShowPromptsList(!showPromptsList)}
-                      className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:flex-none"
-                      title="一覧を表示"
-                    >
-                      {showPromptsList ? '一覧を閉じる' : '一覧'}
-                    </button>
-                  )}
-                </div>
-              </div>
+              )}
+
               <div className="flex flex-col gap-2 sm:flex-row">
                 <textarea
                   value={inputMessage}
@@ -1355,42 +1394,30 @@ function ChatTab({
                   rows={3}
                   style={{ minHeight: '44px', maxHeight: '200px' }}
                 />
-                <button
-                  onClick={sendMessage}
-                  disabled={sending || !inputMessage.trim()}
-                  className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:self-end"
-                >
-                  {sending ? '送信中...' : '送信'}
-                </button>
-              </div>
-              <div className="mt-3">
-                <label className="group flex cursor-pointer items-center gap-3">
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      checked={useRegisteredOnly}
-                      onChange={(e) => setUseRegisteredOnly(e.target.checked)}
-                      className="peer h-4 w-4 cursor-pointer appearance-none rounded border border-gray-300 bg-white transition-all checked:border-blue-500 checked:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+                <div className="flex gap-2 sm:self-end">
+                  <button
+                    onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                    className="flex items-center justify-center rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-gray-700 transition-colors hover:bg-gray-50"
+                    title={isSettingsExpanded ? '設定を閉じる' : '設定を開く'}
+                  >
                     <svg
-                      className="pointer-events-none absolute left-0.5 top-0.5 h-3 w-3 text-white opacity-0 transition-opacity peer-checked:opacity-100"
+                      className={`h-4 w-4 transition-transform ${isSettingsExpanded ? 'rotate-180' : ''}`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
-                      strokeWidth="3"
+                      strokeWidth="2"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-sm text-gray-700 transition-colors group-hover:text-gray-900">
-                      登録情報のみを参照して回答する
-                    </span>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      {useRegisteredOnly ? '登録情報のみ参照' : '一般知識も使用可能'}
-                    </p>
-                  </div>
-                </label>
+                  </button>
+                  <button
+                    onClick={sendMessage}
+                    disabled={sending || !inputMessage.trim()}
+                    className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  >
+                    {sending ? '送信中...' : '送信'}
+                  </button>
+                </div>
               </div>
             </div>
           </>
