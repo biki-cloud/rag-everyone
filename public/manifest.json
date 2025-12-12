@@ -15,10 +15,9 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/favicon.ico",
+      "src": "/icon.svg",
       "sizes": "48x48",
       "type": "image/x-icon"
     }
   ]
 }
-
