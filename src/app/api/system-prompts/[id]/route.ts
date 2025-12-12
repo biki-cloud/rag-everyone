@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: '無効なプロンプトIDです' }, { status: 400 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as { title?: string; content?: string };
     const { title, content } = body;
 
     if (!title || !content) {

@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
@@ -47,7 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
@@ -73,4 +79,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'スレッドの作成に失敗しました' }, { status: 500 });
   }
 }
-

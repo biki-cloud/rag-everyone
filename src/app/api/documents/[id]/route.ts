@@ -82,7 +82,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: '無効なドキュメントIDです' }, { status: 400 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as { title?: string; content?: string };
     const { title, content } = body;
 
     if (!title || !content) {
@@ -121,8 +121,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const chunks = chunkText(content, 600, 150);
 
     // 各チャンクの埋め込みを生成して保存
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
+    for (const [i, chunk] of chunks.entries()) {
       const embedding = await generateEmbedding(chunk);
 
       await db.insert(documentChunksTable).values({

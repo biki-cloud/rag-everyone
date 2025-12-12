@@ -519,7 +519,9 @@ ${unifiedContext}\n\n`;
           const streamResponse = await openai.chat.completions.create(requestOptions);
 
           // ストリームを処理
-          for await (const chunk of streamResponse) {
+          for await (const chunk of streamResponse as unknown as AsyncIterable<{
+            choices: Array<{ delta?: { content?: string } }>;
+          }>) {
             const content = chunk.choices[0]?.delta?.content || '';
             if (content) {
               assistantContent += content;

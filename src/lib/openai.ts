@@ -13,8 +13,8 @@ function splitIntoSentences(text: string): string[] {
   const sentences: string[] = [];
   let currentSentence = '';
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
+  for (const part of parts) {
+    if (!part) continue;
     if (sentenceEndings.test(part)) {
       currentSentence += part;
       if (currentSentence.trim()) {
@@ -54,7 +54,9 @@ export function chunkText(text: string, chunkSize: number = 600, overlap: number
 
       // 後ろから文を追加してオーバーラップサイズに近づける
       for (let i = currentSentences.length - 1; i >= 0 && overlapLength < overlap; i--) {
-        const s = currentSentences[i].trim();
+        const sentence = currentSentences[i];
+        if (!sentence) continue;
+        const s = sentence.trim();
         if (s) {
           overlapSentences.unshift(s);
           overlapLength += s.length;
@@ -102,10 +104,12 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   let normA = 0;
   let normB = 0;
 
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
+  for (const [i, a] of vecA.entries()) {
+    const b = vecB[i];
+    if (b === undefined) continue;
+    dotProduct += a * b;
+    normA += a * a;
+    normB += b * b;
   }
 
   const denominator = Math.sqrt(normA) * Math.sqrt(normB);

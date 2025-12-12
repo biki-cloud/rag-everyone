@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as { titles?: unknown };
     const { titles } = body;
 
     if (!titles || !Array.isArray(titles) || titles.length === 0) {
@@ -57,4 +57,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ドキュメントIDの取得に失敗しました' }, { status: 500 });
   }
 }
-

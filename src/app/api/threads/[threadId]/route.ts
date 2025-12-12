@@ -37,7 +37,7 @@ export async function PATCH(
       return NextResponse.json({ error: '無効なスレッドIDです' }, { status: 400 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as { title?: string };
     const { title } = body;
 
     if (title === undefined) {

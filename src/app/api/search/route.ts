@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as { query?: string; limit?: number };
     const { query, limit = 5 } = body;
 
     if (!query) {

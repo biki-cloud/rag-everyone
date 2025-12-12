@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename);
 
 // .envファイルを読み込む
 const envPath = path.join(__dirname, '.env');
+/** @type {Record<string, string>} */
 let envVars = {};
 
 if (fs.existsSync(envPath)) {
@@ -59,7 +60,9 @@ const browserScript = `// ブラウザのコンソールで実行してトーク
 
     if (authKey) {
       try {
-        const tokenData = JSON.parse(localStorage.getItem(authKey));
+        const item = localStorage.getItem(authKey);
+        if (!item) return;
+        const tokenData = JSON.parse(item);
         if (tokenData?.access_token) {
           console.log('✓ トークンを取得しました！');
           console.log('\\nトークン:');
@@ -79,6 +82,7 @@ const browserScript = `// ブラウザのコンソールで実行してトーク
     console.log('ローカルストレージから直接取得を試みます...');
     for (const key of storageKeys) {
       const value = localStorage.getItem(key);
+      if (!value) continue;
       try {
         const parsed = JSON.parse(value);
         if (parsed?.access_token) {

@@ -40,5 +40,13 @@
     "next.config.mjs",
     "env.d.ts"
   ],
-  "exclude": ["node_modules", "tsconfig.json", "public/sw.js", "public/workbox-*.js", "public/fallback-*.js"]
+  "exclude": [
+    "node_modules",
+    "tsconfig.json",
+    "public/sw.js",
+    "public/workbox-*.js",
+    "public/fallback-*.js",
+    "generate_token_script.js",
+    "get_token_browser_generated.js"
+  ]
 }
