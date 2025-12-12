@@ -524,6 +524,7 @@ function ChatTab({
   const [showPromptsList, setShowPromptsList] = useState(false);
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
+  const [deletingThreadId, setDeletingThreadId] = useState<number | null>(null);
 
   const createThread = async () => {
     if (!session) return;
@@ -749,6 +750,38 @@ function ChatTab({
   const handleTitleCancel = () => {
     setEditingThreadId(null);
     setEditingTitle('');
+  };
+
+  const handleDeleteThread = async (threadId: number) => {
+    if (!session) return;
+    if (!confirm('本当にこの会話を削除しますか？この操作は取り消せません。')) return;
+
+    setDeletingThreadId(threadId);
+    try {
+      const response = await fetch(`/api/threads/${threadId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session}`,
+        },
+      });
+
+      if (response.ok) {
+        // 削除されたスレッドが選択されていた場合は選択を解除
+        if (selectedThreadId === threadId) {
+          setSelectedThreadId(null);
+          setMessages([]);
+        }
+        void onRefresh();
+      } else {
+        const error = (await response.json()) as { error?: string };
+        alert(error.error || '会話の削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to delete thread:', error);
+      alert('会話の削除に失敗しました');
+    } finally {
+      setDeletingThreadId(null);
+    }
   };
 
   const sendMessage = async () => {
@@ -1121,6 +1154,51 @@ function ChatTab({
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                       />
                     </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDeleteThread(thread.id);
+                    }}
+                    disabled={deletingThreadId === thread.id}
+                    className={`rounded p-1 transition-colors disabled:opacity-50 ${
+                      selectedThreadId === thread.id
+                        ? 'text-white hover:bg-red-600'
+                        : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
+                    }`}
+                    title="削除"
+                  >
+                    {deletingThreadId === thread.id ? (
+                      <svg
+                        className="h-4 w-4 animate-spin"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    )}
                   </button>
                 </div>
               )}

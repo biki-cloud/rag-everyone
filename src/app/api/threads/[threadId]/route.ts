@@ -74,3 +74,55 @@ export async function PATCH(
     return NextResponse.json({ error: 'スレッドの更新に失敗しました' }, { status: 500 });
   }
 }
+
+// スレッドを削除
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ threadId: string }> }
+) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
+    }
+
+    const { threadId } = await params;
+    const threadIdNum = parseInt(threadId);
+
+    if (isNaN(threadIdNum)) {
+      return NextResponse.json({ error: '無効なスレッドIDです' }, { status: 400 });
+    }
+
+    // スレッドが存在し、ユーザーが所有しているか確認
+    const [existingThread] = await db
+      .select()
+      .from(threadsTable)
+      .where(eq(threadsTable.id, threadIdNum));
+
+    if (!existingThread) {
+      return NextResponse.json({ error: 'スレッドが見つかりません' }, { status: 404 });
+    }
+
+    if (existingThread.userId !== user.id) {
+      return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
+    }
+
+    // スレッドを削除（cascadeでメッセージも自動削除される）
+    await db.delete(threadsTable).where(eq(threadsTable.id, threadIdNum));
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting thread:', error);
+    return NextResponse.json({ error: 'スレッドの削除に失敗しました' }, { status: 500 });
+  }
+}
