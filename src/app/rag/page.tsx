@@ -523,6 +523,7 @@ function ChatTab({
   const [deletingPromptId, setDeletingPromptId] = useState<number | null>(null);
   const [showPromptsList, setShowPromptsList] = useState(false);
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
 
   const createThread = async () => {
     if (!session) return;
@@ -1362,8 +1363,10 @@ function ChatTab({
                 <textarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
                       e.preventDefault();
                       void sendMessage();
                     }
