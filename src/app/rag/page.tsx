@@ -816,7 +816,7 @@ function ChatTab({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session}`,
           },
-          body: JSON.stringify({ query: userMessage, limit: 3 }),
+          body: JSON.stringify({ query: userMessage, limit: 8 }),
         });
 
         if (searchResponse.ok) {

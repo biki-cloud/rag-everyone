@@ -108,10 +108,50 @@ export async function POST(request: NextRequest) {
         }
         // 異なるドキュメントは類似度順
         return b.similarity - a.similarity;
-      })
-      .slice(0, limit);
+      });
 
-    return NextResponse.json({ chunks: chunksWithSimilarity });
+    // 異なるドキュメントを優先的に取得するロジック
+    // まず上位Nチャンク（limitの3倍）を取得してから、各ドキュメントから最大2チャンクまで選択
+    const candidateChunks = chunksWithSimilarity.slice(0, limit * 3);
+    const selectedChunks: typeof chunksWithSimilarity = [];
+    const documentChunkCount = new Map<number, number>(); // ドキュメントID -> 選択済みチャンク数
+    const maxChunksPerDocument = 2; // 各ドキュメントから最大2チャンクまで
+
+    for (const chunk of candidateChunks) {
+      const currentCount = documentChunkCount.get(chunk.documentId) || 0;
+
+      // まだ制限に達していない場合、または全体のチャンク数がまだ少ない場合
+      if (currentCount < maxChunksPerDocument || selectedChunks.length < limit) {
+        selectedChunks.push(chunk);
+        documentChunkCount.set(chunk.documentId, currentCount + 1);
+
+        // 必要なチャンク数を取得したら終了
+        if (selectedChunks.length >= limit) {
+          break;
+        }
+      }
+    }
+
+    // 最終的にlimitに達していない場合は、残りのチャンクを追加（異なるドキュメント優先）
+    if (selectedChunks.length < limit) {
+      for (const chunk of chunksWithSimilarity) {
+        if (selectedChunks.some((c) => c.chunkId === chunk.chunkId)) {
+          continue; // 既に選択済み
+        }
+
+        const currentCount = documentChunkCount.get(chunk.documentId) || 0;
+        if (currentCount < maxChunksPerDocument) {
+          selectedChunks.push(chunk);
+          documentChunkCount.set(chunk.documentId, currentCount + 1);
+
+          if (selectedChunks.length >= limit) {
+            break;
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({ chunks: selectedChunks });
   } catch (error) {
     console.error('Error searching documents:', error);
     return NextResponse.json({ error: '検索に失敗しました' }, { status: 500 });
